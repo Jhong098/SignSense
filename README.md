@@ -28,3 +28,5 @@ Prerequisites:
 
 1. `cd server`
 2. `./run.sh`
+
+now you should see the Flask server at `localhost:5000`
