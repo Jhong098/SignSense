@@ -1,18 +1,10 @@
 from flask import Flask, jsonify, make_response
+from flask_cors import CORS
 
 app = Flask(__name__)
+cors = CORS(app)
 
 
-@app.route('/api', methods=['GET'])
-def test_response():
-    """Return a sample JSON response."""
-    sample_response = {
-        "items": [
-            { "id": 1, "name": "Apples",  "price": "$2" },
-            { "id": 2, "name": "Peaches", "price": "$5" }
-        ]
-    }
-    # JSONify response
-    response = make_response(jsonify(sample_response))
-
-    return response
+@app.route('/', methods=['GET'])
+def test():
+    return jsonify({"data": "hello react"})
