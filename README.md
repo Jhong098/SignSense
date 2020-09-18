@@ -1,5 +1,11 @@
 # SignSense
 
+## Folder Structure
+
+`client/` contains all the FE React app that will interface with the user
+
+`server/` contains the BE Flask server that will call other scripts to process input and return predictions
+
 ## Running Locally
 
 ### Frontend
