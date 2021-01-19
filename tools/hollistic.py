@@ -62,8 +62,8 @@ def convert_video(infile, outfile):
     out.release()
     cv2.destroyAllWindows()
 
-# Store landmarks as .npy file
-def convert_datafile(infile, outfile):
+# Store landmarks into a np array
+def convert_array(infile):
     def to_list(landmark_list, list_size):
         if landmark_list is None:
             return itertools.repeat([0.0, 0.0], list_size)
@@ -79,8 +79,12 @@ def convert_datafile(infile, outfile):
            to_list(results.pose_landmarks, 33)
         )) for _, results in process_video(infile)
     ])
+    return data
 
-    np.save(outfile, data)
+
+# Store landmarks as .npy file
+def convert_datafile(infile, outfile):
+    np.save(outfile, convert_array(infile))
 
 def read_datafile(infile, rows):
     data = np.load(infile)
