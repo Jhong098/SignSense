@@ -66,12 +66,12 @@ def convert_video(infile, outfile):
 def convert_array(infile):
     def to_list(landmark_list, list_size):
         if landmark_list is None:
-            return itertools.repeat([0.0, 0.0], list_size)
-        return ([landmark.x, landmark.y] for landmark in landmark_list.landmark)
+            return itertools.repeat([0.0, 0.0, 0.0], list_size)
+        return ([landmark.x, landmark.y, landmark.z] for landmark in landmark_list.landmark)
 
     # Each frame represents a row in the data.
     # Each row contains all landmarks (hands and pose) associated with the frame.
-    # Each landmark is a [x, y] pair
+    # Each landmark is a [x, y, z] pair
     data = np.array([
        list(itertools.chain(
            to_list(results.left_hand_landmarks, 21),
