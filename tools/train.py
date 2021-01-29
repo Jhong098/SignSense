@@ -2,8 +2,10 @@ import keras
 from keras.models import Sequential
 from keras import layers
 
+import holistic
+
 TIMESTEPS = 100 # Should exceed sample-count of a typical video
-LANDMARK_COUNT = 42
+LANDMARK_COUNT = holistic.HAND_LANDMARK_COUNT * 2
 POINT_DIM = 3
 
 def build_model(labels):
