@@ -2,11 +2,16 @@ import pprint
 import itertools
 from sys import argv
 import cv2
+from cv2 import data
 import mediapipe as mp
 import numpy as np
+import os
+
 # tested and working, simply pip install mediapipe, numpy, and cv2
 
 # For each video frame, yield the image and landmarks
+
+
 def process_video(infile, solution_cls):
     # change the file path below to the video you want to output
     cap = cv2.VideoCapture(infile)
@@ -15,7 +20,7 @@ def process_video(infile, solution_cls):
         min_detection_confidence=0.6, min_tracking_confidence=0.3)
 
     if not cap.isOpened():
-        print("Error opening")
+        print("Error opening {}".format(infile))
 
     while(cap.isOpened()):
         ret, image = cap.read()
@@ -39,6 +44,8 @@ def process_video(infile, solution_cls):
     cap.release()
 
 # Add landmarks onto input video and show the result
+
+
 def convert_video(infile, outfile, use_holistic):
     mp_drawing = mp.solutions.drawing_utils
     # first argument is the ouput file. Set to AVI, but doesn't matter since this is only for visualization
@@ -85,15 +92,18 @@ def convert_array(infile):
         return ([landmark.x, landmark.y, landmark.z] for landmark in landmark_list.landmark)
 
     # Each frame represents a row in the data.
-    # Each row contains all landmarks (hands and pose) associated with the frame.
-    # Each landmark is a [x, y, z] pair
+    # Each row contains all landmarks(hands and pose) associated with the frame.
+    # Each landmark is a[x, y, z] pair
+    # process as holistic
     data = np.array([
         list(itertools.chain(
             to_list(results.left_hand_landmarks, 21),
-            to_list(results.right_hand_landmarks, 21),
-            to_list(results.pose_landmarks, 33)
-        )) for _, results in process_video(infile, mp.solutions.holistic.Holistic)
+            to_list(results.right_hand_landmarks, 21)
+            # remove pose landmarks since prod will only use MP hands
+            # to_list(results.pose_landmarks, 33)
+        )) for _, results in process_video(infile, False)
     ])
+
     return data
 
 
@@ -105,10 +115,28 @@ def convert_datafile(infile, outfile):
 def read_datafile(infile):
     return np.load(infile)
 
+
 def print_datafile(infile, rows):
     data = read_datafile(infile)
     with np.printoptions(threshold=np.inf):
-        print(data[:rows])
+        print(data[: rows])
+
+
+def convert_dataset(indir, outdir):
+    if not os.path.exists(outdir):
+        os.mkdir(outdir)
+    for sign in os.listdir(indir):
+        signPath = indir+'/'+sign
+        dataPath = outdir+'/'+sign
+        if os.path.exists(dataPath) and len(os.listdir(dataPath)) != 0:
+            exit(
+                "Datapath for sign {} is not empty, please ensure all data paths are removed or empty")
+        elif not os.path.exists(dataPath):
+            os.mkdir(dataPath)
+
+        for video in os.listdir(signPath):
+            convert_datafile(signPath+'/'+video,  dataPath +
+                             '/'+video.split('.')[0])
 
 
 if __name__ == "__main__":
@@ -123,6 +151,9 @@ if __name__ == "__main__":
     elif cmd == 'write':
         convert_datafile(arg1, arg2)
     elif cmd == "read":
+        read_datafile(arg1, int(arg2))
         print_datafile(arg1, int(arg2))
+    elif cmd == "dataset":
+        convert_dataset(indir=arg1, outdir=arg2)
     else:
         print("Wrong command")
