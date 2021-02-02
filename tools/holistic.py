@@ -7,6 +7,8 @@ import mediapipe as mp
 import numpy as np
 import os
 
+HAND_LANDMARK_COUNT = 21
+
 # tested and working, simply pip install mediapipe, numpy, and cv2
 
 # For each video frame, yield the image and landmarks
@@ -86,22 +88,20 @@ def convert_video(infile, outfile, use_holistic):
 
 def convert_array(infile):
     def to_list(landmark_list, list_size):
-        print(landmark_list)
         if landmark_list is None:
-            return itertools.repeat([0.0, 0.0, 0.0], list_size)
-        return ([landmark.x, landmark.y, landmark.z] for landmark in landmark_list.landmark)
+            return itertools.repeat(0.0, list_size * 3)
+        return (c for landmark in landmark_list.landmark for c in [landmark.x, landmark.y, landmark.z])
 
     # Each frame represents a row in the data.
-    # Each row contains all landmarks(hands and pose) associated with the frame.
-    # Each landmark is a[x, y, z] pair
+    # Each row contains x, y, and z of all landmarks(hands and pose) associated with the frame.
     # process as holistic
     data = np.array([
         list(itertools.chain(
-            to_list(results.left_hand_landmarks, 21),
-            to_list(results.right_hand_landmarks, 21)
+            to_list(results.left_hand_landmarks, HAND_LANDMARK_COUNT),
+            to_list(results.right_hand_landmarks, HAND_LANDMARK_COUNT)
             # remove pose landmarks since prod will only use MP hands
             # to_list(results.pose_landmarks, 33)
-        )) for _, results in process_video(infile, False)
+        )) for _, results in process_video(infile, mp.solutions.holistic.Holistic)
     ])
 
     return data
@@ -151,7 +151,6 @@ if __name__ == "__main__":
     elif cmd == 'write':
         convert_datafile(arg1, arg2)
     elif cmd == "read":
-        read_datafile(arg1, int(arg2))
         print_datafile(arg1, int(arg2))
     elif cmd == "dataset":
         convert_dataset(indir=arg1, outdir=arg2)
