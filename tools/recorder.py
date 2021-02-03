@@ -43,7 +43,7 @@ def test():
         if not cap.isOpened():
             print("Error opening camera")
 
-        fourcc = cv2.VideoWriter_fourcc('M', 'J', 'P', 'G')
+        fourcc = cv2.VideoWriter_fourcc(*'MJPG')
         cap.set(cv2.CAP_PROP_FOURCC, fourcc)
 
         # below is all choppy??
@@ -66,8 +66,9 @@ def test():
                 try:
                     # out = cv2.VideoWriter("test/test1.mp4", cv2.VideoWriter_fourcc(
                     #     'M', 'P', '4', 'V'), 30, (640, 480))
+
                     out = cv2.VideoWriter("test{}.mp4".format(i), cv2.VideoWriter_fourcc(
-                        *'MJPG'), 60, (width, height))
+                        *'MP4V'), 30, (width, height))
                     i += 1
                 except:
                     exit("Error opening output file")
@@ -84,8 +85,11 @@ def test():
             ret, image = cap.read()
             if ret == True:
                 image.flags.writeable = False
-                image.flags.writeable = True
+                # image.flags.writeable = True
                 cv2.imshow('Input', image)
+                if recording:
+                    out.write(image)
+
                 process_video(image)
                 # get mediapipe results
 
@@ -95,9 +99,6 @@ def test():
                 # for a webcam it just limits the polling of the webcam
                 if cv2.waitKey(1) & 0xFF == ord('q'):
                     break
-
-                if recording:
-                    out.write(image)
 
             else:
                 break
@@ -113,7 +114,7 @@ if __name__ == "__main__":
     capture.start()
     print("Hold on while I start the camera")
     ready.wait()
-    print("Ready when you are :)")
+    print("Ready when you are :) (Press enter to start/stop recording)")
     try:
         while (1):
             input()
@@ -121,5 +122,5 @@ if __name__ == "__main__":
             input()
             stop_recording.set()
     except KeyboardInterrupt:
-        mp_hands.close()
+
         exit()
