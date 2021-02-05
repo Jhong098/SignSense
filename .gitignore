@@ -133,3 +133,5 @@ dmypy.json
 
 # React
 node_modules/
+
+.DS_Store
