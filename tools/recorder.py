@@ -2,125 +2,195 @@ from sys import argv
 import cv2
 import mediapipe as mp
 import threading
+import itertools
+import numpy as np
+import time
+import signal
+import sys
 
+# mp_hands = mp.solutions.hands.Hands(
+#     min_detection_confidence=0.5, min_tracking_confidence=0.3)
 
-mp_hands = mp.solutions.hands.Hands(
-    min_detection_confidence=0.5, min_tracking_confidence=0.3)
+# mp_drawing = mp.solutions.drawing_utils
 
-mp_drawing = mp.solutions.drawing_utils
+HAND_LANDMARK_COUNT = 21
 
 start_recording = threading.Event()
 stop_recording = threading.Event()
 ready = threading.Event()
+quit = threading.Event()
+
+# def process_frame(frame):
+
+#     # To improve performance, optionally mark the image as not writeable to
+#     # pass by reference.
+#     frame.flags.writeable = False
+#     landmarks = mp_hands.process(frame)
+#     frame.flags.writeable = True
+
+#     if landmarks.multi_hand_landmarks:
+#         for hand_landmarks in landmarks.multi_hand_landmarks:
+#             mp_drawing.draw_landmarks(
+#                 frame, hand_landmarks, mp.python.solutions.holistic.HAND_CONNECTIONS)
+#     cv2.imshow("MediaPipe", frame)
+
+#     return landmarks
 
 
-def process_video(frame):
-
-    # To improve performance, optionally mark the image as not writeable to
-    # pass by reference.
-    frame.flags.writeable = False
-    landmarks = mp_hands.process(frame)
-    frame.flags.writeable = True
-
-    if landmarks.multi_hand_landmarks:
-        for hand_landmarks in landmarks.multi_hand_landmarks:
-            mp_drawing.draw_landmarks(
-                frame, hand_landmarks, mp.python.solutions.holistic.HAND_CONNECTIONS)
-    cv2.imshow("MediaPipe", frame)
+def signal_handler(sig, frame):
+    sys.exit(0)
 
 
-def test():
-    try:
-        # change the file path below to the video you want to output
-        recording = False
-        try:
-            cap = cv2.VideoCapture(0,  cv2.CAP_DSHOW)
-            # cap = cv2.VideoCapture(0)
-        except Exception as e:
-            print("Error opening input source")
-            return
+def set_capture():
+    cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)
+    fourcc = cv2.VideoWriter_fourcc(*'MJPG')
+    cap.set(cv2.CAP_PROP_FOURCC, fourcc)
 
-        if not cap.isOpened():
-            print("Error opening camera")
+    if not cap.isOpened():
+        print("Error opening Camera")
+    return cap
 
-        fourcc = cv2.VideoWriter_fourcc(*'MJPG')
-        cap.set(cv2.CAP_PROP_FOURCC, fourcc)
 
-        # below is all choppy??
-        # width = 720
-        # height = 1280
+def process_video(cap):
+    # change the file path below to the video you want to output
 
-        # below works at 30 FPS
-        width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-        height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    # below is all choppy??
+    # width = 720
+    # height = 1280
 
-        cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
-        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
-        cap.set(cv2.CAP_PROP_FPS, 60)
+    # below works at 30 FPS
 
-        i = 0
-        ready.set()
-        while(cap.isOpened()):
-            if start_recording.is_set():
-                print("Recording")
-                try:
-                    # out = cv2.VideoWriter("test/test1.mp4", cv2.VideoWriter_fourcc(
-                    #     'M', 'P', '4', 'V'), 30, (640, 480))
+    ready.set()
+    mp_hands = mp.solutions.hands.Hands(
+        min_detection_confidence=0.5, min_tracking_confidence=0.3)
 
-                    out = cv2.VideoWriter("test{}.mp4".format(i), cv2.VideoWriter_fourcc(
-                        *'MP4V'), 30, (width, height))
-                    i += 1
-                except:
-                    exit("Error opening output file")
-                recording = True
-                start_recording.clear()
+    while(cap.isOpened()):
+        ret, image = cap.read()
+        if ret == True:
+            # To improve performance, optionally mark the image as not writeable to
+            # pass by reference.
+            image.flags.writeable = False
+            landmarks = mp_hands.process(image)
+            image.flags.writeable = True
+            yield (image, landmarks)
 
-            if stop_recording.is_set():
-                print("Stopped")
-
-                recording = False
-                out.release()
-                stop_recording.clear()
-
-            ret, image = cap.read()
-            if ret == True:
-                image.flags.writeable = False
-                # image.flags.writeable = True
-                cv2.imshow('Input', image)
-                if recording:
-                    out.write(image)
-
-                process_video(image)
-                # get mediapipe results
-
-                # show media pipe window
-
-                # this makes the software wait before reading the next frame. Effectively sets the frame rate of the output video (lower the number faster it reads through the frames)
-                # for a webcam it just limits the polling of the webcam
-                if cv2.waitKey(1) & 0xFF == ord('q'):
-                    break
-
-            else:
+            # this makes the software wait before reading the next frame. Effectively sets the frame rate of the output video (lower the number faster it reads through the frames)
+            # for a webcam it just limits the polling of the webcam
+            if cv2.waitKey(1) & 0xFF == ord('q'):
+                break
+            if quit.is_set():
                 break
 
-        cap.release()
-        cv2.destroyAllWindows()
-    except Exception as e:
-        print(e)
+        else:
+            break
+
+    mp_hands.close()
+    cap.release()
+
+
+def to_list(landmark_list, list_size):
+    if landmark_list is None:
+        return itertools.repeat(0.0, list_size * 3)
+    return (c for landmark in landmark_list.landmark for c in [landmark.x, landmark.y, landmark.z])
+
+
+def recorder():
+
+    # change the file path below to the video you want to output
+    recording = False
+    cap = set_capture()
+
+    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    mp_drawing = mp.solutions.drawing_utils
+    i = 0
+
+    for image, results in process_video(cap):
+        if start_recording.is_set():
+            print("Recording")
+            try:
+                # out = cv2.VideoWriter("test/test1.mp4", cv2.VideoWriter_fourcc(
+                #     'M', 'P', '4', 'V'), 30, (640, 480))
+
+                out = cv2.VideoWriter("vid{}.mp4".format(i), cv2.VideoWriter_fourcc(
+                    *'MP4V'), 30, (width, height))
+
+            except:
+                exit("Error opening output file")
+
+            outfile = "vid{}".format(i)
+
+            data = list()
+            i += 1
+            recording = True
+            start_recording.clear()
+
+        if stop_recording.is_set():
+            print("Stopped")
+
+            np.save(outfile, np.array(data))
+            recording = False
+            out.release()
+            stop_recording.clear()
+
+        cv2.imshow('Input', image)
+        if recording:
+            out.write(image)
+            if results.multi_hand_landmarks:
+                # for hand_landmarks in results.multi_hand_landmarks:
+                #     print(
+                #         to_list(results.multi_hand_landmarks[0], HAND_LANDMARK_COUNT), '\n')
+                detections = len(results.multi_hand_landmarks)
+                landmarks = list()
+                if detections == 1:
+                    landmarks.extend(
+                        to_list(results.multi_hand_landmarks[0], HAND_LANDMARK_COUNT))
+                    landmarks.extend(itertools.repeat(
+                        0.0, HAND_LANDMARK_COUNT * 3))
+                else:
+                    for hand in results.multi_hand_landmarks:
+                        landmarks.extend(to_list(hand, HAND_LANDMARK_COUNT))
+                data.append(
+                    list(
+                        itertools.chain(landmarks)
+                    )
+                )
+
+        if results.multi_hand_landmarks:
+
+            for hand_landmarks in results.multi_hand_landmarks:
+                mp_drawing.draw_landmarks(
+                    image, hand_landmarks, mp.python.solutions.holistic.HAND_CONNECTIONS)
+        cv2.imshow("MediaPipe", image)
+    return
+
+
+def close(thread):
+    print("Cleaning up")
+    quit.set()
+    thread.join()
+    exit()
 
 
 if __name__ == "__main__":
-    capture = threading.Thread(target=test, daemon=True)
+
+    # signal.signal(signal.SIGINT, signal_handler)
+
+    capture = threading.Thread(target=recorder)  # , daemon=True)
     capture.start()
     print("Hold on while I start the camera")
     ready.wait()
     print("Ready when you are :) (Press enter to start/stop recording)")
     try:
         while (1):
-            input()
+            if input() == 'q':
+                close(capture)
+            print("starting in:")
+            for i in range(3, 0, -1):
+                print(i)
+                time.sleep(1)
             start_recording.set()
             input()
             stop_recording.set()
     except KeyboardInterrupt:
-
-        exit()
+        close(capture)
