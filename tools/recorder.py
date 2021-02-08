@@ -41,16 +41,6 @@ def signal_handler(sig, frame):
     sys.exit(0)
 
 
-def set_capture():
-    cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)
-    fourcc = cv2.VideoWriter_fourcc(*'MJPG')
-    cap.set(cv2.CAP_PROP_FOURCC, fourcc)
-
-    if not cap.isOpened():
-        print("Error opening Camera")
-    return cap
-
-
 def process_video(cap):
     # change the file path below to the video you want to output
 
@@ -98,7 +88,12 @@ def recorder():
 
     # change the file path below to the video you want to output
     recording = False
-    cap = set_capture()
+    cap = cv2.VideoCapture(0)
+    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+    cap.set(cv2.CAP_PROP_FOURCC, fourcc)
+
+    if not cap.isOpened():
+        print("Error opening Camera")
 
     width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
@@ -112,10 +107,10 @@ def recorder():
                 # out = cv2.VideoWriter("test/test1.mp4", cv2.VideoWriter_fourcc(
                 #     'M', 'P', '4', 'V'), 30, (640, 480))
 
-                out = cv2.VideoWriter("vid{}.mp4".format(i), cv2.VideoWriter_fourcc(
-                    *'MP4V'), 30, (width, height))
+                out = cv2.VideoWriter("vid{}.mp4".format(i), fourcc, 30, (width, height))
 
-            except:
+            except e:
+                print(e)
                 exit("Error opening output file")
 
             outfile = "vid{}".format(i)
@@ -142,19 +137,13 @@ def recorder():
                 #         to_list(results.multi_hand_landmarks[0], HAND_LANDMARK_COUNT), '\n')
                 detections = len(results.multi_hand_landmarks)
                 landmarks = list()
-                if detections == 1:
-                    landmarks.extend(
-                        to_list(results.multi_hand_landmarks[0], HAND_LANDMARK_COUNT))
-                    landmarks.extend(itertools.repeat(
-                        0.0, HAND_LANDMARK_COUNT * 3))
-                else:
-                    for hand in results.multi_hand_landmarks:
-                        landmarks.extend(to_list(hand, HAND_LANDMARK_COUNT))
-                data.append(
-                    list(
-                        itertools.chain(landmarks)
-                    )
-                )
+                # Sometimes MP Hands detects more than 2 hands, which messes up the data format, so we limit # of hands to 2
+                for hand in results.multi_hand_landmarks[:2]:
+                    landmarks.extend(to_list(hand, HAND_LANDMARK_COUNT))
+                landmarks.extend(itertools.repeat(0.0, HAND_LANDMARK_COUNT*2*3 - len(landmarks)))
+                if len(landmarks) != HAND_LANDMARK_COUNT*2*3:
+                    print("WARNING: expected row length {} but got {} instead".format(HAND_LANDMARK_COUNT*2*3, len(landmarks)))
+                data.append(landmarks)
 
         if results.multi_hand_landmarks:
 
