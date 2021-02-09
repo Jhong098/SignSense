@@ -37,7 +37,7 @@ def recorder():
     i = 0
 
     ready.set()
-    for image, results in holistic.process_capture(cap, mp.solutions.holistic.Holistic):
+    for image, results in holistic.process_capture(cap, True):
         if quit.is_set():
             break
 

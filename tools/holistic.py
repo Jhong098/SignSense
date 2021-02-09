@@ -7,27 +7,66 @@ import mediapipe as mp
 import numpy as np
 import os
 
+
 HAND_LANDMARK_COUNT = 21
-POSE_LANDMARK_COUNT = 33
+POSE_LANDMARK_COUNT = 25
 LANDMARK_COUNT = HAND_LANDMARK_COUNT * 2 + POSE_LANDMARK_COUNT
 
 TARGET_FPS = 30
+
+MP_HANDS = mp.solutions.hands.Hands(
+min_detection_confidence=0.6, min_tracking_confidence=0.3)
+MP_HOLISTIC = mp.solutions.holistic.Holistic(
+    min_detection_confidence=0.5, min_tracking_confidence=0.5, upper_body_only=True)
+
+# POSE_CONNECTIONS only works for whole-body pose data, not upper body
+# This is only necessary for drawing landmarks not for training
+UPPER_BODY_CONNECTIONS = frozenset([
+    (mp.solutions.pose.PoseLandmark.NOSE, mp.solutions.pose.PoseLandmark.RIGHT_EYE_INNER),
+    (mp.solutions.pose.PoseLandmark.RIGHT_EYE_INNER, mp.solutions.pose.PoseLandmark.RIGHT_EYE),
+    (mp.solutions.pose.PoseLandmark.RIGHT_EYE, mp.solutions.pose.PoseLandmark.RIGHT_EYE_OUTER),
+    (mp.solutions.pose.PoseLandmark.RIGHT_EYE_OUTER, mp.solutions.pose.PoseLandmark.RIGHT_EAR),
+    (mp.solutions.pose.PoseLandmark.NOSE, mp.solutions.pose.PoseLandmark.LEFT_EYE_INNER),
+    (mp.solutions.pose.PoseLandmark.LEFT_EYE_INNER, mp.solutions.pose.PoseLandmark.LEFT_EYE),
+    (mp.solutions.pose.PoseLandmark.LEFT_EYE, mp.solutions.pose.PoseLandmark.LEFT_EYE_OUTER),
+    (mp.solutions.pose.PoseLandmark.LEFT_EYE_OUTER, mp.solutions.pose.PoseLandmark.LEFT_EAR),
+    (mp.solutions.pose.PoseLandmark.MOUTH_RIGHT, mp.solutions.pose.PoseLandmark.MOUTH_LEFT),
+    (mp.solutions.pose.PoseLandmark.RIGHT_SHOULDER, mp.solutions.pose.PoseLandmark.LEFT_SHOULDER),
+    (mp.solutions.pose.PoseLandmark.RIGHT_SHOULDER, mp.solutions.pose.PoseLandmark.RIGHT_ELBOW),
+    (mp.solutions.pose.PoseLandmark.RIGHT_ELBOW, mp.solutions.pose.PoseLandmark.RIGHT_WRIST),
+    (mp.solutions.pose.PoseLandmark.RIGHT_WRIST, mp.solutions.pose.PoseLandmark.RIGHT_PINKY),
+    (mp.solutions.pose.PoseLandmark.RIGHT_WRIST, mp.solutions.pose.PoseLandmark.RIGHT_INDEX),
+    (mp.solutions.pose.PoseLandmark.RIGHT_WRIST, mp.solutions.pose.PoseLandmark.RIGHT_THUMB),
+    (mp.solutions.pose.PoseLandmark.RIGHT_PINKY, mp.solutions.pose.PoseLandmark.RIGHT_INDEX),
+    (mp.solutions.pose.PoseLandmark.LEFT_SHOULDER, mp.solutions.pose.PoseLandmark.LEFT_ELBOW),
+    (mp.solutions.pose.PoseLandmark.LEFT_ELBOW, mp.solutions.pose.PoseLandmark.LEFT_WRIST),
+    (mp.solutions.pose.PoseLandmark.LEFT_WRIST, mp.solutions.pose.PoseLandmark.LEFT_PINKY),
+    (mp.solutions.pose.PoseLandmark.LEFT_WRIST, mp.solutions.pose.PoseLandmark.LEFT_INDEX),
+    (mp.solutions.pose.PoseLandmark.LEFT_WRIST, mp.solutions.pose.PoseLandmark.LEFT_THUMB),
+    (mp.solutions.pose.PoseLandmark.LEFT_PINKY, mp.solutions.pose.PoseLandmark.LEFT_INDEX),
+    (mp.solutions.pose.PoseLandmark.RIGHT_SHOULDER, mp.solutions.pose.PoseLandmark.RIGHT_HIP),
+    (mp.solutions.pose.PoseLandmark.LEFT_SHOULDER, mp.solutions.pose.PoseLandmark.LEFT_HIP),
+    (mp.solutions.pose.PoseLandmark.RIGHT_HIP, mp.solutions.pose.PoseLandmark.LEFT_HIP),
+    (mp.solutions.pose.PoseLandmark.RIGHT_HIP, mp.solutions.pose.PoseLandmark.LEFT_HIP),
+])
 
 # tested and working, simply pip install mediapipe, numpy, and cv2
 
 # For each video frame, yield the image and landmarks
 
-def process_video(infile, solution_cls):
+def process_video(infile, use_holistic):
     # change the file path below to the video you want to output
     cap = cv2.VideoCapture(infile)
     if not cap.isOpened():
         print("Error opening {}".format(infile))
     cap.set(cv2.CAP_PROP_FPS, TARGET_FPS)
-    return process_capture(cap, solution_cls)
+    return process_capture(cap, use_holistic)
 
-def process_capture(cap, solution_cls):
-    solution = solution_cls(
-        min_detection_confidence=0.5, min_tracking_confidence=0.5)
+def process_capture(cap, use_holistic):
+    if use_holistic:
+        solution = MP_HOLISTIC
+    else:
+        solution = MP_HANDS
 
     while(cap.isOpened()):
         ret, image = cap.read()
@@ -61,7 +100,7 @@ def draw_landmarks(image, landmarks, use_holistic):
         mp_drawing.draw_landmarks(
             image, landmarks.right_hand_landmarks, mp.python.solutions.holistic.HAND_CONNECTIONS)
         mp_drawing.draw_landmarks(
-            image, landmarks.pose_landmarks, mp.python.solutions.holistic.POSE_CONNECTIONS)
+            image, landmarks.pose_landmarks, UPPER_BODY_CONNECTIONS)
     else:
         if landmarks.multi_hand_landmarks:
             for hand_landmarks in landmarks.multi_hand_landmarks:
@@ -73,12 +112,7 @@ def convert_video(infile, outfile, use_holistic):
     out = cv2.VideoWriter(outfile, cv2.VideoWriter_fourcc(
         'M', 'J', 'P', 'G'), TARGET_FPS, (640, 480))
 
-    if use_holistic:
-        solution_cls = mp.solutions.holistic.Holistic
-    else:
-        solution_cls = mp.solutions.hands.Hands
-
-    for image, results in process_video(infile, solution_cls):
+    for image, results in process_video(infile, use_holistic):
         # both cv2.imshow's can be omitted if you don't want to see the software work in real time.
         cv2.imshow('Frame', image)
         draw_landmarks(image, results, use_holistic)
