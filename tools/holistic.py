@@ -17,7 +17,7 @@ TARGET_FPS = 30
 MP_HANDS = mp.solutions.hands.Hands(
 min_detection_confidence=0.6, min_tracking_confidence=0.3)
 MP_HOLISTIC = mp.solutions.holistic.Holistic(
-    min_detection_confidence=0.5, min_tracking_confidence=0.5, upper_body_only=True)
+    min_detection_confidence=0.5, min_tracking_confidence=0.2, upper_body_only=True)
 
 # POSE_CONNECTIONS only works for whole-body pose data, not upper body
 # This is only necessary for drawing landmarks not for training
