@@ -14,11 +14,6 @@ LANDMARK_COUNT = HAND_LANDMARK_COUNT * 2 + POSE_LANDMARK_COUNT
 
 TARGET_FPS = 30
 
-MP_HANDS = mp.solutions.hands.Hands(
-min_detection_confidence=0.6, min_tracking_confidence=0.3)
-MP_HOLISTIC = mp.solutions.holistic.Holistic(
-    min_detection_confidence=0.5, min_tracking_confidence=0.2, upper_body_only=True)
-
 # POSE_CONNECTIONS only works for whole-body pose data, not upper body
 # This is only necessary for drawing landmarks not for training
 UPPER_BODY_CONNECTIONS = frozenset([
@@ -64,9 +59,11 @@ def process_video(infile, use_holistic):
 
 def process_capture(cap, use_holistic):
     if use_holistic:
-        solution = MP_HOLISTIC
+        solution = mp.solutions.holistic.Holistic(
+            min_detection_confidence=0.5, min_tracking_confidence=0.2, upper_body_only=True)
     else:
-        solution = MP_HANDS
+        solution = mp.solutions.hands.Hands(
+            min_detection_confidence=0.6, min_tracking_confidence=0.3)
 
     while(cap.isOpened()):
         ret, image = cap.read()
@@ -174,7 +171,9 @@ def convert_dataset(indir, outdir):
             os.mkdir(dataPath)
 
         for video in os.listdir(signPath):
-            convert_datafile(signPath+'/'+video,  dataPath +
+            vid_path = signPath+'/'+video
+            print("Processing {}".format(vid_path))
+            convert_datafile(vid_path,  dataPath +
                              '/'+video.split('.')[0])
 
 
