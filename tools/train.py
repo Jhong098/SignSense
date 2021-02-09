@@ -10,12 +10,11 @@ from tensorflow.keras.utils import to_categorical
 import holistic
 
 TIMESTEPS = 250 # Should exceed sample-count of a typical video
-LANDMARK_COUNT = holistic.HAND_LANDMARK_COUNT * 2
 POINT_DIM = 3
 
 def build_model(labels):
     model = Sequential()
-    model.add(keras.Input(shape = (TIMESTEPS, LANDMARK_COUNT * POINT_DIM)))
+    model.add(keras.Input(shape = (TIMESTEPS, holistic.LANDMARK_COUNT * POINT_DIM)))
     model.add(layers.LSTM(64, name="lstm1", return_sequences=True))
     model.add(layers.LSTM(32, name="lstm2", return_sequences=True))
     model.add(layers.LSTM(32, name="lstm3"))

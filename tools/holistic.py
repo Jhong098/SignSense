@@ -8,21 +8,26 @@ import numpy as np
 import os
 
 HAND_LANDMARK_COUNT = 21
+POSE_LANDMARK_COUNT = 33
+LANDMARK_COUNT = HAND_LANDMARK_COUNT * 2 + POSE_LANDMARK_COUNT
+
+TARGET_FPS = 30
 
 # tested and working, simply pip install mediapipe, numpy, and cv2
 
 # For each video frame, yield the image and landmarks
 
-
 def process_video(infile, solution_cls):
     # change the file path below to the video you want to output
     cap = cv2.VideoCapture(infile)
-
-    solution = solution_cls(
-        min_detection_confidence=0.6, min_tracking_confidence=0.3)
-
     if not cap.isOpened():
         print("Error opening {}".format(infile))
+    cap.set(cv2.CAP_PROP_FPS, TARGET_FPS)
+    return process_capture(cap, solution_cls)
+
+def process_capture(cap, solution_cls):
+    solution = solution_cls(
+        min_detection_confidence=0.5, min_tracking_confidence=0.5)
 
     while(cap.isOpened()):
         ret, image = cap.read()
@@ -47,12 +52,26 @@ def process_video(infile, solution_cls):
 
 # Add landmarks onto input video and show the result
 
+def draw_landmarks(image, landmarks, use_holistic):
+    mp_drawing = mp.solutions.drawing_utils
+    # Draw landmark annotation on the image.
+    if use_holistic:
+        mp_drawing.draw_landmarks(
+            image, landmarks.left_hand_landmarks, mp.python.solutions.holistic.HAND_CONNECTIONS)
+        mp_drawing.draw_landmarks(
+            image, landmarks.right_hand_landmarks, mp.python.solutions.holistic.HAND_CONNECTIONS)
+        mp_drawing.draw_landmarks(
+            image, landmarks.pose_landmarks, mp.python.solutions.holistic.POSE_CONNECTIONS)
+    else:
+        if landmarks.multi_hand_landmarks:
+            for hand_landmarks in landmarks.multi_hand_landmarks:
+                mp_drawing.draw_landmarks(
+                    image, hand_landmarks, mp.python.solutions.holistic.HAND_CONNECTIONS)
 
 def convert_video(infile, outfile, use_holistic):
-    mp_drawing = mp.solutions.drawing_utils
     # first argument is the ouput file. Set to AVI, but doesn't matter since this is only for visualization
     out = cv2.VideoWriter(outfile, cv2.VideoWriter_fourcc(
-        'M', 'J', 'P', 'G'), 60, (640, 480))
+        'M', 'J', 'P', 'G'), TARGET_FPS, (640, 480))
 
     if use_holistic:
         solution_cls = mp.solutions.holistic.Holistic
@@ -62,22 +81,8 @@ def convert_video(infile, outfile, use_holistic):
     for image, results in process_video(infile, solution_cls):
         # both cv2.imshow's can be omitted if you don't want to see the software work in real time.
         cv2.imshow('Frame', image)
-        # Draw landmark annotation on the image.
-        if use_holistic:
-            mp_drawing.draw_landmarks(
-                image, results.left_hand_landmarks, mp.python.solutions.holistic.HAND_CONNECTIONS)
-            mp_drawing.draw_landmarks(
-                image, results.right_hand_landmarks, mp.python.solutions.holistic.HAND_CONNECTIONS)
-            mp_drawing.draw_landmarks(
-                image, results.pose_landmarks, mp.python.solutions.holistic.POSE_CONNECTIONS)
-        else:
-            if results.multi_hand_landmarks:
-                for hand_landmarks in results.multi_hand_landmarks:
-                    mp_drawing.draw_landmarks(
-                        image, hand_landmarks, mp.python.solutions.holistic.HAND_CONNECTIONS)
-
+        draw_landmarks(image, results, use_holistic)
         cv2.imshow('MediaPipe', image)
-
         out.write(image)
 
     out.release()
@@ -85,25 +90,25 @@ def convert_video(infile, outfile, use_holistic):
 
 # Store landmarks into a np array
 
-
-def convert_array(infile):
+def to_landmark_row(results):
     def to_list(landmark_list, list_size):
         if landmark_list is None:
             return itertools.repeat(0.0, list_size * 3)
         return (c for landmark in landmark_list.landmark for c in [landmark.x, landmark.y, landmark.z])
 
+    return list(itertools.chain(
+        to_list(results.left_hand_landmarks, HAND_LANDMARK_COUNT),
+        to_list(results.right_hand_landmarks, HAND_LANDMARK_COUNT),
+        to_list(results.pose_landmarks, POSE_LANDMARK_COUNT),
+    ))
+
+def convert_array(infile):
     # Each frame represents a row in the data.
     # Each row contains x, y, and z of all landmarks(hands and pose) associated with the frame.
     # process as holistic
     data = np.array([
-        list(itertools.chain(
-            to_list(results.left_hand_landmarks, HAND_LANDMARK_COUNT),
-            to_list(results.right_hand_landmarks, HAND_LANDMARK_COUNT)
-            # remove pose landmarks since prod will only use MP hands
-            # to_list(results.pose_landmarks, 33)
-        )) for _, results in process_video(infile, mp.solutions.holistic.Holistic)
+        to_landmark_row(results) for _, results in process_video(infile, mp.solutions.holistic.Holistic)
     ])
-
     return data
 
 
