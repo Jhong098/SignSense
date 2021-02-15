@@ -12,7 +12,7 @@ HAND_LANDMARK_COUNT = 21
 POSE_LANDMARK_COUNT = 25
 LANDMARK_COUNT = HAND_LANDMARK_COUNT * 2 + POSE_LANDMARK_COUNT
 
-TARGET_FPS = 30
+TARGET_FPS = 30 
 
 # POSE_CONNECTIONS only works for whole-body pose data, not upper body
 # This is only necessary for drawing landmarks not for training
@@ -107,11 +107,11 @@ def draw_landmarks(image, landmarks, use_holistic):
 def convert_video(infile, outfile, use_holistic):
     # first argument is the ouput file. Set to AVI, but doesn't matter since this is only for visualization
     out = cv2.VideoWriter(outfile, cv2.VideoWriter_fourcc(
-        'M', 'J', 'P', 'G'), TARGET_FPS, (640, 480))
+        'M', 'P', '4', 'V'), TARGET_FPS, (1280, 720))
 
     for image, results in process_video(infile, use_holistic):
         # both cv2.imshow's can be omitted if you don't want to see the software work in real time.
-        cv2.imshow('Frame', image)
+        #cv2.imshow('Frame', image)
         draw_landmarks(image, results, use_holistic)
         cv2.imshow('MediaPipe', image)
         out.write(image)
@@ -192,5 +192,15 @@ if __name__ == "__main__":
         print_datafile(arg1, int(arg2))
     elif cmd == "dataset":
         convert_dataset(indir=arg1, outdir=arg2)
+    elif cmd == "multi":
+        dir = arg1+'/mp'
+        try: 
+            os.mkdir(dir)
+        except: 
+            print("out dir already exists")
+        for f in os.listdir(arg1):
+            if os.path.isdir(arg1+'/'+f):
+                continue
+            convert_video(arg1+'/'+f, dir+'/mp.'+f, True)
     else:
         print("Wrong command")
