@@ -12,42 +12,69 @@ HAND_LANDMARK_COUNT = 21
 POSE_LANDMARK_COUNT = 25
 LANDMARK_COUNT = HAND_LANDMARK_COUNT * 2 + POSE_LANDMARK_COUNT
 
-TARGET_FPS = 30 
+TARGET_FPS = 30
 
 # POSE_CONNECTIONS only works for whole-body pose data, not upper body
 # This is only necessary for drawing landmarks not for training
 UPPER_BODY_CONNECTIONS = frozenset([
-    (mp.solutions.pose.PoseLandmark.NOSE, mp.solutions.pose.PoseLandmark.RIGHT_EYE_INNER),
-    (mp.solutions.pose.PoseLandmark.RIGHT_EYE_INNER, mp.solutions.pose.PoseLandmark.RIGHT_EYE),
-    (mp.solutions.pose.PoseLandmark.RIGHT_EYE, mp.solutions.pose.PoseLandmark.RIGHT_EYE_OUTER),
-    (mp.solutions.pose.PoseLandmark.RIGHT_EYE_OUTER, mp.solutions.pose.PoseLandmark.RIGHT_EAR),
-    (mp.solutions.pose.PoseLandmark.NOSE, mp.solutions.pose.PoseLandmark.LEFT_EYE_INNER),
-    (mp.solutions.pose.PoseLandmark.LEFT_EYE_INNER, mp.solutions.pose.PoseLandmark.LEFT_EYE),
-    (mp.solutions.pose.PoseLandmark.LEFT_EYE, mp.solutions.pose.PoseLandmark.LEFT_EYE_OUTER),
-    (mp.solutions.pose.PoseLandmark.LEFT_EYE_OUTER, mp.solutions.pose.PoseLandmark.LEFT_EAR),
-    (mp.solutions.pose.PoseLandmark.MOUTH_RIGHT, mp.solutions.pose.PoseLandmark.MOUTH_LEFT),
-    (mp.solutions.pose.PoseLandmark.RIGHT_SHOULDER, mp.solutions.pose.PoseLandmark.LEFT_SHOULDER),
-    (mp.solutions.pose.PoseLandmark.RIGHT_SHOULDER, mp.solutions.pose.PoseLandmark.RIGHT_ELBOW),
-    (mp.solutions.pose.PoseLandmark.RIGHT_ELBOW, mp.solutions.pose.PoseLandmark.RIGHT_WRIST),
-    (mp.solutions.pose.PoseLandmark.RIGHT_WRIST, mp.solutions.pose.PoseLandmark.RIGHT_PINKY),
-    (mp.solutions.pose.PoseLandmark.RIGHT_WRIST, mp.solutions.pose.PoseLandmark.RIGHT_INDEX),
-    (mp.solutions.pose.PoseLandmark.RIGHT_WRIST, mp.solutions.pose.PoseLandmark.RIGHT_THUMB),
-    (mp.solutions.pose.PoseLandmark.RIGHT_PINKY, mp.solutions.pose.PoseLandmark.RIGHT_INDEX),
-    (mp.solutions.pose.PoseLandmark.LEFT_SHOULDER, mp.solutions.pose.PoseLandmark.LEFT_ELBOW),
-    (mp.solutions.pose.PoseLandmark.LEFT_ELBOW, mp.solutions.pose.PoseLandmark.LEFT_WRIST),
-    (mp.solutions.pose.PoseLandmark.LEFT_WRIST, mp.solutions.pose.PoseLandmark.LEFT_PINKY),
-    (mp.solutions.pose.PoseLandmark.LEFT_WRIST, mp.solutions.pose.PoseLandmark.LEFT_INDEX),
-    (mp.solutions.pose.PoseLandmark.LEFT_WRIST, mp.solutions.pose.PoseLandmark.LEFT_THUMB),
-    (mp.solutions.pose.PoseLandmark.LEFT_PINKY, mp.solutions.pose.PoseLandmark.LEFT_INDEX),
-    (mp.solutions.pose.PoseLandmark.RIGHT_SHOULDER, mp.solutions.pose.PoseLandmark.RIGHT_HIP),
-    (mp.solutions.pose.PoseLandmark.LEFT_SHOULDER, mp.solutions.pose.PoseLandmark.LEFT_HIP),
-    (mp.solutions.pose.PoseLandmark.RIGHT_HIP, mp.solutions.pose.PoseLandmark.LEFT_HIP),
-    (mp.solutions.pose.PoseLandmark.RIGHT_HIP, mp.solutions.pose.PoseLandmark.LEFT_HIP),
+    (mp.solutions.pose.PoseLandmark.NOSE,
+     mp.solutions.pose.PoseLandmark.RIGHT_EYE_INNER),
+    (mp.solutions.pose.PoseLandmark.RIGHT_EYE_INNER,
+     mp.solutions.pose.PoseLandmark.RIGHT_EYE),
+    (mp.solutions.pose.PoseLandmark.RIGHT_EYE,
+     mp.solutions.pose.PoseLandmark.RIGHT_EYE_OUTER),
+    (mp.solutions.pose.PoseLandmark.RIGHT_EYE_OUTER,
+     mp.solutions.pose.PoseLandmark.RIGHT_EAR),
+    (mp.solutions.pose.PoseLandmark.NOSE,
+     mp.solutions.pose.PoseLandmark.LEFT_EYE_INNER),
+    (mp.solutions.pose.PoseLandmark.LEFT_EYE_INNER,
+     mp.solutions.pose.PoseLandmark.LEFT_EYE),
+    (mp.solutions.pose.PoseLandmark.LEFT_EYE,
+     mp.solutions.pose.PoseLandmark.LEFT_EYE_OUTER),
+    (mp.solutions.pose.PoseLandmark.LEFT_EYE_OUTER,
+     mp.solutions.pose.PoseLandmark.LEFT_EAR),
+    (mp.solutions.pose.PoseLandmark.MOUTH_RIGHT,
+     mp.solutions.pose.PoseLandmark.MOUTH_LEFT),
+    (mp.solutions.pose.PoseLandmark.RIGHT_SHOULDER,
+     mp.solutions.pose.PoseLandmark.LEFT_SHOULDER),
+    (mp.solutions.pose.PoseLandmark.RIGHT_SHOULDER,
+     mp.solutions.pose.PoseLandmark.RIGHT_ELBOW),
+    (mp.solutions.pose.PoseLandmark.RIGHT_ELBOW,
+     mp.solutions.pose.PoseLandmark.RIGHT_WRIST),
+    (mp.solutions.pose.PoseLandmark.RIGHT_WRIST,
+     mp.solutions.pose.PoseLandmark.RIGHT_PINKY),
+    (mp.solutions.pose.PoseLandmark.RIGHT_WRIST,
+     mp.solutions.pose.PoseLandmark.RIGHT_INDEX),
+    (mp.solutions.pose.PoseLandmark.RIGHT_WRIST,
+     mp.solutions.pose.PoseLandmark.RIGHT_THUMB),
+    (mp.solutions.pose.PoseLandmark.RIGHT_PINKY,
+     mp.solutions.pose.PoseLandmark.RIGHT_INDEX),
+    (mp.solutions.pose.PoseLandmark.LEFT_SHOULDER,
+     mp.solutions.pose.PoseLandmark.LEFT_ELBOW),
+    (mp.solutions.pose.PoseLandmark.LEFT_ELBOW,
+     mp.solutions.pose.PoseLandmark.LEFT_WRIST),
+    (mp.solutions.pose.PoseLandmark.LEFT_WRIST,
+     mp.solutions.pose.PoseLandmark.LEFT_PINKY),
+    (mp.solutions.pose.PoseLandmark.LEFT_WRIST,
+     mp.solutions.pose.PoseLandmark.LEFT_INDEX),
+    (mp.solutions.pose.PoseLandmark.LEFT_WRIST,
+     mp.solutions.pose.PoseLandmark.LEFT_THUMB),
+    (mp.solutions.pose.PoseLandmark.LEFT_PINKY,
+     mp.solutions.pose.PoseLandmark.LEFT_INDEX),
+    (mp.solutions.pose.PoseLandmark.RIGHT_SHOULDER,
+     mp.solutions.pose.PoseLandmark.RIGHT_HIP),
+    (mp.solutions.pose.PoseLandmark.LEFT_SHOULDER,
+     mp.solutions.pose.PoseLandmark.LEFT_HIP),
+    (mp.solutions.pose.PoseLandmark.RIGHT_HIP,
+     mp.solutions.pose.PoseLandmark.LEFT_HIP),
+    (mp.solutions.pose.PoseLandmark.RIGHT_HIP,
+     mp.solutions.pose.PoseLandmark.LEFT_HIP),
 ])
 
 # tested and working, simply pip install mediapipe, numpy, and cv2
 
 # For each video frame, yield the image and landmarks
+
 
 def process_video(infile, use_holistic):
     # change the file path below to the video you want to output
@@ -56,6 +83,7 @@ def process_video(infile, use_holistic):
         print("Error opening {}".format(infile))
     cap.set(cv2.CAP_PROP_FPS, TARGET_FPS)
     return process_capture(cap, use_holistic)
+
 
 def process_capture(cap, use_holistic):
     if use_holistic:
@@ -88,6 +116,7 @@ def process_capture(cap, use_holistic):
 
 # Add landmarks onto input video and show the result
 
+
 def draw_landmarks(image, landmarks, use_holistic):
     mp_drawing = mp.solutions.drawing_utils
     # Draw landmark annotation on the image.
@@ -104,12 +133,23 @@ def draw_landmarks(image, landmarks, use_holistic):
                 mp_drawing.draw_landmarks(
                     image, hand_landmarks, mp.python.solutions.holistic.HAND_CONNECTIONS)
 
+
 def convert_video(infile, outfile, use_holistic):
+
+    # change the file path below to the video you want to output
+    cap = cv2.VideoCapture(infile)
+    if not cap.isOpened():
+        print("Error opening {}".format(infile))
+    cap.set(cv2.CAP_PROP_FPS, TARGET_FPS)
+    fps = cap.get(cv2.CAP_PROP_FPS)
+    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+
     # first argument is the ouput file. Set to AVI, but doesn't matter since this is only for visualization
     out = cv2.VideoWriter(outfile, cv2.VideoWriter_fourcc(
-        'M', 'P', '4', 'V'), TARGET_FPS, (1280, 720))
+        'M', 'P', '4', 'V'), fps, (width, height))
 
-    for image, results in process_video(infile, use_holistic):
+    for image, results in process_capture(cap, use_holistic):
         # both cv2.imshow's can be omitted if you don't want to see the software work in real time.
         #cv2.imshow('Frame', image)
         draw_landmarks(image, results, use_holistic)
@@ -120,6 +160,7 @@ def convert_video(infile, outfile, use_holistic):
     cv2.destroyAllWindows()
 
 # Store landmarks into a np array
+
 
 def to_landmark_row(results):
     def to_list(landmark_list, list_size):
@@ -132,6 +173,7 @@ def to_landmark_row(results):
         to_list(results.right_hand_landmarks, HAND_LANDMARK_COUNT),
         to_list(results.pose_landmarks, POSE_LANDMARK_COUNT),
     ))
+
 
 def convert_array(infile):
     # Each frame represents a row in the data.
@@ -194,9 +236,9 @@ if __name__ == "__main__":
         convert_dataset(indir=arg1, outdir=arg2)
     elif cmd == "multi":
         dir = arg1+'/mp'
-        try: 
+        try:
             os.mkdir(dir)
-        except: 
+        except:
             print("out dir already exists")
         for f in os.listdir(arg1):
             if os.path.isdir(arg1+'/'+f):
