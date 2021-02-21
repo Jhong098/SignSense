@@ -1,9 +1,14 @@
+from random import random
 from sys import argv
 from pathlib import Path
 import numpy as np
+import tensorflow as tf
+import matplotlib.pyplot as plt
+
 import keras
 from keras.models import Sequential
 from keras import layers
+from keras.optimizers import Adam
 from tensorflow.keras.preprocessing.text import Tokenizer
 from tensorflow.keras.utils import to_categorical
 
@@ -19,19 +24,27 @@ def build_model(labels):
     model.add(layers.LSTM(32, name="lstm2", return_sequences=True))
     model.add(layers.LSTM(32, name="lstm3"))
     model.add(layers.Dense(labels, activation="softmax"))
+    adam = Adam(lr = 0.0005)
     model.compile(loss='categorical_crossentropy',
-                  optimizer='adam',
+                  optimizer=adam,
                   metrics=['accuracy'])
     model.summary()
     return model
 
-TEST_SPLIT = 3
-VALIDATION_SPLIT = 1
+def label_to_matrix(labels, label_list):
+    table = { l:i for i, l in enumerate(labels) }
+    indices = [table[l] for l in label_list]
+    return tf.one_hot(indices, len(table))
+
+TEST_SPLIT = 0.2
+VALIDATION_SPLIT = 0.2
 def load_data(dirname):
+    labels = []
     words, words_test, words_val = [], [], []
     dataset, dataset_test, dataset_val = [], [], []
 
     for sign in Path(dirname).iterdir():
+        labels.append(sign.name)
         for i, datafile in enumerate(sign.iterdir()):
             data = holistic.read_datafile(datafile)
             assert data.shape[0] <= TIMESTEPS, "TIMESTEP must be above {}".format(data.shape[0])
@@ -39,7 +52,7 @@ def load_data(dirname):
             zeros = np.zeros( (TIMESTEPS-data.shape[0],) + data.shape[1:] )
             data = np.concatenate((data, zeros), axis=0)
 
-            data_loc = i % 10 # Should be generated randomly once we have more data
+            data_loc = random()
             if data_loc < TEST_SPLIT:
                 dataset_ref = dataset_test
                 words_ref = words_test
@@ -64,15 +77,22 @@ def load_data(dirname):
 
     return X, Y, X_test, Y_test, X_val, Y_val
 
-def train_model(dirname):
+def plot_data(name, data):
+    plt.figure()
+    plt.plot(data)
+    plt.title(name)
+
+def train_model(dirname, epochs=100, batch_size=32):
     X, Y, X_test, Y_test, X_val, Y_val = load_data(dirname)
     print("Size of training set = {}, test set = {}, validation set = {}".format(X.shape[0], X_test.shape[0], X_val.shape[0]))
     model = build_model(Y.shape[1])
-    history = model.fit(X, Y, epochs=5, batch_size=10, validation_data=(X_val, Y_val))
-    score, acc = model.evaluate(X_test, Y_test)
+    history = model.fit(X, Y, epochs=epochs, batch_size=batch_size, validation_data=(X_val, Y_val))
+    score, acc = model.evaluate(X, Y, batch_size=batch_size)
 
-    print(history.history)
-    print("score: {} accuracy: {}".format(score, acc))
+    print("loss: {} accuracy: {}".format(score, acc))
+    for name, data in history.history.items():
+        plot_data(name, data)
+    plt.show()
     return model
 
 # Usage: data_dir [model_file]
