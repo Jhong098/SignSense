@@ -31,11 +31,6 @@ def build_model(labels):
     model.summary()
     return model
 
-def label_to_matrix(labels, label_list):
-    table = { l:i for i, l in enumerate(labels) }
-    indices = [table[l] for l in label_list]
-    return tf.one_hot(indices, len(table))
-
 TEST_SPLIT = 0.2
 VALIDATION_SPLIT = 0.2
 def load_data(dirname):
@@ -82,12 +77,12 @@ def plot_data(name, data):
     plt.plot(data)
     plt.title(name)
 
-def train_model(dirname, epochs=100, batch_size=32):
+def train_model(dirname, epochs=500, batch_size=32):
     X, Y, X_test, Y_test, X_val, Y_val = load_data(dirname)
     print("Size of training set = {}, test set = {}, validation set = {}".format(X.shape[0], X_test.shape[0], X_val.shape[0]))
     model = build_model(Y.shape[1])
     history = model.fit(X, Y, epochs=epochs, batch_size=batch_size, validation_data=(X_val, Y_val))
-    score, acc = model.evaluate(X, Y, batch_size=batch_size)
+    score, acc = model.evaluate(X_test, Y_test, batch_size=batch_size)
 
     print("loss: {} accuracy: {}".format(score, acc))
     for name, data in history.history.items():
