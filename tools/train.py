@@ -14,40 +14,42 @@ from tensorflow.keras.utils import to_categorical
 
 import holistic
 
-TIMESTEPS = 250 # Should exceed sample-count of a typical video
+TIMESTEPS = 120
 POINT_DIM = 3
 
-def build_model(labels):
+def build_model(labels, frame_dim):
     model = Sequential()
-    model.add(keras.Input(shape = (TIMESTEPS, holistic.LANDMARK_COUNT * POINT_DIM)))
+    model.add(keras.Input(shape = (TIMESTEPS, frame_dim)))
     model.add(layers.LSTM(64, name="lstm1", return_sequences=True))
-    model.add(layers.LSTM(32, name="lstm2", return_sequences=True))
     model.add(layers.LSTM(32, name="lstm3"))
     model.add(layers.Dense(labels, activation="softmax"))
-    adam = Adam(lr = 0.0005)
+    adam = Adam(lr = 0.0002)
     model.compile(loss='categorical_crossentropy',
                   optimizer=adam,
                   metrics=['accuracy'])
     model.summary()
     return model
 
-TEST_SPLIT = 0.2
-VALIDATION_SPLIT = 0.2
+TEST_SPLIT = 2
+VALIDATION_SPLIT = 2
 def load_data(dirname):
     labels = []
     words, words_test, words_val = [], [], []
     dataset, dataset_test, dataset_val = [], [], []
+    sizes = []
 
     for sign in Path(dirname).iterdir():
         labels.append(sign.name)
         for i, datafile in enumerate(sign.iterdir()):
             data = holistic.read_datafile(datafile)
-            assert data.shape[0] <= TIMESTEPS, "TIMESTEP must be above {}".format(data.shape[0])
+            sizes.append(data.shape[0])
+            if data.shape[0] > TIMESTEPS:
+                data = data[:TIMESTEPS]
             # Zero-pad the data array
             zeros = np.zeros( (TIMESTEPS-data.shape[0],) + data.shape[1:] )
             data = np.concatenate((data, zeros), axis=0)
 
-            data_loc = random()
+            data_loc = i % 10
             if data_loc < TEST_SPLIT:
                 dataset_ref = dataset_test
                 words_ref = words_test
@@ -70,6 +72,10 @@ def load_data(dirname):
     X_test = np.array(dataset_test)
     X_val = np.array(dataset_val)
 
+    # print histogram of dataset sizes
+    plt.hist(sizes, 250)
+    plt.show()
+
     return X, Y, X_test, Y_test, X_val, Y_val
 
 def plot_data(name, data):
@@ -77,14 +83,15 @@ def plot_data(name, data):
     plt.plot(data)
     plt.title(name)
 
-def train_model(dirname, epochs=500, batch_size=32):
+def train_model(dirname, epochs=300, batch_size=64):
     X, Y, X_test, Y_test, X_val, Y_val = load_data(dirname)
     print("Size of training set = {}, test set = {}, validation set = {}".format(X.shape[0], X_test.shape[0], X_val.shape[0]))
-    model = build_model(Y.shape[1])
+    model = build_model(Y.shape[1], X.shape[2])
     history = model.fit(X, Y, epochs=epochs, batch_size=batch_size, validation_data=(X_val, Y_val))
     score, acc = model.evaluate(X_test, Y_test, batch_size=batch_size)
+    print(model.predict(X_test))
 
-    print("loss: {} accuracy: {}".format(score, acc))
+    print("score: {} accuracy: {}".format(score, acc))
     for name, data in history.history.items():
         plot_data(name, data)
     plt.show()
