@@ -10,8 +10,6 @@ import sys
 import holistic
 
 
-HAND_LANDMARK_COUNT = 21
-
 start_recording = threading.Event()
 stop_recording = threading.Event()
 ready = threading.Event()
@@ -37,7 +35,7 @@ def recorder():
     i = 0
 
     ready.set()
-    for image, results in holistic.process_capture(cap, True):
+    for image, results in holistic.process_capture(cap, False):
         if quit.is_set():
             break
 
@@ -67,10 +65,10 @@ def recorder():
 
         if recording:
             out.write(image)
-            data.append(holistic.to_landmark_row(results))
+            data.append(holistic.to_landmark_row(results, False))
 
         cv2.imshow('Input', image)
-        holistic.draw_landmarks(image, results, True)
+        holistic.draw_landmarks(image, results, False)
         cv2.imshow("MediaPipe", image)
     return
 

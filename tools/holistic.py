@@ -6,6 +6,7 @@ from cv2 import data
 import mediapipe as mp
 import numpy as np
 import os
+from google.protobuf.json_format import MessageToDict
 
 
 HAND_LANDMARK_COUNT = 21
@@ -91,7 +92,7 @@ def process_capture(cap, use_holistic):
             min_detection_confidence=0.5, min_tracking_confidence=0.2, upper_body_only=True)
     else:
         solution = mp.solutions.hands.Hands(
-            min_detection_confidence=0.6, min_tracking_confidence=0.3)
+            min_detection_confidence=0.7, min_tracking_confidence=0.5, max_num_hands=2)
 
     while(cap.isOpened()):
         ret, image = cap.read()
@@ -128,7 +129,13 @@ def draw_landmarks(image, landmarks, use_holistic):
         mp_drawing.draw_landmarks(
             image, landmarks.pose_landmarks, UPPER_BODY_CONNECTIONS)
     else:
+
         if landmarks.multi_hand_landmarks:
+            for idx, hand_handedness in enumerate(landmarks.multi_handedness):
+                handedness_dict = MessageToDict(hand_handedness)
+                hand = handedness_dict['classification'][0]["label"]
+                cv2.putText(image, hand, (int(1280*landmarks.multi_hand_landmarks[idx].landmark[0].x), int(720*landmarks.multi_hand_landmarks[idx].landmark[0].y)),
+                            cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
             for hand_landmarks in landmarks.multi_hand_landmarks:
                 mp_drawing.draw_landmarks(
                     image, hand_landmarks, mp.python.solutions.holistic.HAND_CONNECTIONS)
@@ -151,7 +158,7 @@ def convert_video(infile, outfile, use_holistic):
 
     for image, results in process_capture(cap, use_holistic):
         # both cv2.imshow's can be omitted if you don't want to see the software work in real time.
-        #cv2.imshow('Frame', image)
+        # cv2.imshow('Frame', image)
         draw_landmarks(image, results, use_holistic)
         cv2.imshow('MediaPipe', image)
         out.write(image)
@@ -162,25 +169,56 @@ def convert_video(infile, outfile, use_holistic):
 # Store landmarks into a np array
 
 
-def to_landmark_row(results):
+def to_landmark_row(results, use_holistic):
     def to_list(landmark_list, list_size):
         if landmark_list is None:
             return itertools.repeat(0.0, list_size * 3)
         return (c for landmark in landmark_list.landmark for c in [landmark.x, landmark.y, landmark.z])
 
-    return list(itertools.chain(
-        to_list(results.left_hand_landmarks, HAND_LANDMARK_COUNT),
-        to_list(results.right_hand_landmarks, HAND_LANDMARK_COUNT),
-        to_list(results.pose_landmarks, POSE_LANDMARK_COUNT),
-    ))
+    if use_holistic:
+        return list(itertools.chain(
+            to_list(results.left_hand_landmarks, HAND_LANDMARK_COUNT),
+            to_list(results.right_hand_landmarks, HAND_LANDMARK_COUNT),
+            to_list(results.pose_landmarks, POSE_LANDMARK_COUNT),
+        ))
+    else:
+        # NOTE THESE ARE CAMERA RELATIVE POSITIONS, RIGHT IS ACTUALLY THE SUBJECT's LEFT HAND, and vice versa
+        hand_landmarks = {"Left": None, "Right": None}
+        if results.multi_hand_landmarks:
+            num_hands = len(results.multi_hand_landmarks)
+
+        # if num_hands == 0:
+        # we do nothing
+
+            if num_hands == 1:
+                # get which hand was found
+                hand = MessageToDict(results.multi_handedness[0])[
+                    'classification'][0]["label"]
+                hand_landmarks[hand] = results.multi_hand_landmarks[0]
+
+            elif num_hands == 2:
+                # this order is how 2 hands are output from mp
+                hand_landmarks["Left"] = results.multi_hand_landmarks[0]
+                hand_landmarks["Right"] = results.multi_hand_landmarks[1]
+            elif num_hands > 2:
+                exit("Too many hands")
+
+            # output format, always paired, in order Right, Left
+        return list(itertools.chain(
+            # PoV left = right hand
+            to_list(hand_landmarks["Left"], HAND_LANDMARK_COUNT),
+            # PoV right = left hand
+            to_list(hand_landmarks["Right"], HAND_LANDMARK_COUNT),
+        ))
 
 
 def convert_array(infile):
     # Each frame represents a row in the data.
     # Each row contains x, y, and z of all landmarks(hands and pose) associated with the frame.
     # process as holistic
+
     data = np.array([
-        to_landmark_row(results) for _, results in process_video(infile, mp.solutions.holistic.Holistic)
+        to_landmark_row(results, False) for _, results in process_video(infile,  False)
     ])
     return data
 
@@ -243,6 +281,6 @@ if __name__ == "__main__":
         for f in os.listdir(arg1):
             if os.path.isdir(arg1+'/'+f):
                 continue
-            convert_video(arg1+'/'+f, dir+'/mp.'+f, True)
+            convert_video(arg1+'/'+f, dir+'/mp.'+f, False)
     else:
         print("Wrong command")
