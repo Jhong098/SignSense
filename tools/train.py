@@ -84,10 +84,11 @@ def load_and_process_data(dirname):
 
     return X, Y, X_test, Y_test
 
-def plot_data(name, data):
+def plot_data(history, name1, name2):
     plt.figure()
-    plt.plot(data)
-    plt.title(name)
+    plt.plot(history[name1], label=name1)
+    plt.plot(history[name2], label=name2)
+    plt.legend()
 
 def train_model(dirname, epochs=300, batch_size=64, val_split=0.2):
     X, Y, X_test, Y_test = load_and_process_data(dirname)
@@ -95,11 +96,10 @@ def train_model(dirname, epochs=300, batch_size=64, val_split=0.2):
     model = build_model(Y.shape[1], X.shape[2])
     history = model.fit(X, Y, epochs=epochs, batch_size=batch_size, validation_split=val_split)
     score, acc = model.evaluate(X_test, Y_test, batch_size=batch_size)
-    print(model.predict(X_test))
 
     print("score: {} accuracy: {}".format(score, acc))
-    for name, data in history.history.items():
-        plot_data(name, data)
+    plot_data(history.history, 'loss', 'val_loss')
+    plot_data(history.history, 'accuracy', 'val_accuracy')
     plt.show()
     return model
 
