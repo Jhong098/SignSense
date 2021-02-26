@@ -18,8 +18,8 @@ import holistic
 TIMESTEPS = 120
 POINT_DIM = 3
 
-# hand_model: (0.15, 0.15) 66%
-# hand_model2: (0.15, 0.15) 92%
+# hand_model: (0.15, 0.15) 82%
+# hand_model2: (0.15, 0.15) 87.5%
 def build_model(labels, frame_dim, dropout=0.0, rec_dropout=0.0):
     model = Sequential()
     model.add(keras.Input(shape = (TIMESTEPS, frame_dim)))
@@ -34,10 +34,24 @@ def build_model(labels, frame_dim, dropout=0.0, rec_dropout=0.0):
     return model
 
 
+def get_labels(dirname):
+    return [sign.name for sign in Path(dirname).iterdir()]
+
 def load_data(dirname):
     for sign in Path(dirname).iterdir():
         for datafile in sign.iterdir():
             yield (holistic.read_datafile(datafile), sign.name)
+
+def label_signs(data_iter, labels):
+    labels = {l:i+1 for i, l in enumerate(labels)}
+    for data, sign in iter(data_iter):
+        yield (data, labels[sign])
+
+def onehot_labelled_signs(data_iter, num_labels):
+    for data, sign in iter(data_iter):
+        onehot = np.zeros((num_labels + 1))
+        onehot[sign] = 1
+        yield (data, onehot)
 
 def truncate_data(data_iter, timesteps):
     for data, sign in iter(data_iter):
@@ -54,6 +68,11 @@ def extend_data(data_iter, timesteps):
             data = np.concatenate((data, zeros), axis=0)
         yield (data, sign)
 
+def add_gesture_zero(dataset, num_labels):
+    len_per_label = int(len(dataset) // num_labels)
+    zeros = [(np.zeros((TIMESTEPS, dataset[0][0].shape[1])), 0)] * len_per_label
+    return dataset + zeros
+
 TEST_SPLIT = 3
 def split_data(data_iter):
     dataset, dataset_test = [], []
@@ -67,10 +86,14 @@ def split_data(data_iter):
     return (dataset, dataset_test)
 
 def load_and_process_data(dirname):
+    labels = get_labels(dirname)
     data_iter = load_data(dirname)
+    data_iter = label_signs(data_iter, labels)
+    data_iter = add_gesture_zero(list(data_iter), len(labels))
+    data_iter = onehot_labelled_signs(data_iter, len(labels))
     data_iter = extend_data(data_iter, TIMESTEPS)
     data_iter = truncate_data(data_iter, TIMESTEPS)
-    data, data_test = split_data(data_iter)    
+    data, data_test = split_data(data_iter)
     random.shuffle(data)
 
     dataset = [d for d, w in data]
@@ -78,13 +101,10 @@ def load_and_process_data(dirname):
     dataset_test = [d for d, w in data_test]
     words_test = [w for d, w in data_test]
 
-    t = Tokenizer(filters="\n\t")
-    t.fit_on_texts(words)
-    Y = t.texts_to_matrix(words)
-    Y_test = t.texts_to_matrix(words_test)
-
     X = np.array(dataset)
     X_test = np.array(dataset_test)
+    Y = np.array(words)
+    Y_test = np.array(words_test)
 
     return X, Y, X_test, Y_test
 
