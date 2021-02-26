@@ -18,8 +18,9 @@ import holistic
 TIMESTEPS = 120
 POINT_DIM = 3
 
-# hand_model: (0.15, 0.15)
-def build_model(labels, frame_dim, dropout=0.15, rec_dropout=0.15):
+# hand_model: (0.15, 0.15) 66%
+# hand_model2: (0.15, 0.15) 92%
+def build_model(labels, frame_dim, dropout=0.0, rec_dropout=0.0):
     model = Sequential()
     model.add(keras.Input(shape = (TIMESTEPS, frame_dim)))
     model.add(layers.LSTM(64, name="lstm1", dropout=dropout, recurrent_dropout=rec_dropout, return_sequences=True))
