@@ -1,3 +1,4 @@
+from collections import Counter
 from random import random
 from sys import argv
 from pathlib import Path
@@ -30,64 +31,68 @@ def build_model(labels, frame_dim):
     model.summary()
     return model
 
-TEST_SPLIT = 2
-VALIDATION_SPLIT = 2
+
 def load_data(dirname):
-    labels = []
-    words, words_test, words_val = [], [], []
-    dataset, dataset_test, dataset_val = [], [], []
-    sizes = []
-
     for sign in Path(dirname).iterdir():
-        labels.append(sign.name)
         for i, datafile in enumerate(sign.iterdir()):
-            data = holistic.read_datafile(datafile)
-            sizes.append(data.shape[0])
-            if data.shape[0] > TIMESTEPS:
-                data = data[:TIMESTEPS]
-            # Zero-pad the data array
-            zeros = np.zeros( (TIMESTEPS-data.shape[0],) + data.shape[1:] )
-            data = np.concatenate((data, zeros), axis=0)
+            yield (holistic.read_datafile(datafile), sign.name)
 
-            data_loc = i % 10
-            if data_loc < TEST_SPLIT:
-                dataset_ref = dataset_test
-                words_ref = words_test
-            elif data_loc < TEST_SPLIT + VALIDATION_SPLIT:
-                dataset_ref = dataset_val
-                words_ref = words_val
-            else:
-                dataset_ref = dataset
-                words_ref = words
-            dataset_ref.append(data)
-            words_ref.append(sign.name)
+def truncate_data(data_iter, timesteps):
+    for data, sign in iter(data_iter):
+        if data.shape[0] > timesteps:
+            data = data[:timesteps]
+            yield (data, sign)
+
+def extend_data(data_iter, timesteps):
+    for data, sign in iter(data_iter):
+        if data.shape[0] < timesteps:
+            zeros = np.zeros( (timesteps-data.shape[0],) + data.shape[1:] )
+            data = np.concatenate((data, zeros), axis=0)
+        yield (data, sign)
+
+TEST_SPLIT = 2
+def split_data(data_iter):
+    dataset, dataset_test = [], []
+    for i, (data, sign) in enumerate(data_iter):
+        data_loc = i % 10
+        if data_loc < TEST_SPLIT:
+            dataset_ref = dataset_test
+        else:
+            dataset_ref = dataset
+        dataset_ref.append((data, sign))
+    return (dataset, dataset_test)
+
+def load_and_process_data(dirname):
+    data_iter = load_data(dirname)
+    data_iter = truncate_data(data_iter, TIMESTEPS)
+    data_iter = extend_data(data_iter, TIMESTEPS)
+    data, data_test = split_data(data_iter)    
+
+    dataset = [d for d, w in data]
+    words = [w for d, w in data]
+    dataset_test = [d for d, w in data_test]
+    words_test = [w for d, w in data_test]
 
     t = Tokenizer(filters="\n\t")
     t.fit_on_texts(words)
     Y = t.texts_to_matrix(words)
     Y_test = t.texts_to_matrix(words_test)
-    Y_val = t.texts_to_matrix(words_val)
 
     X = np.array(dataset)
     X_test = np.array(dataset_test)
-    X_val = np.array(dataset_val)
 
-    # print histogram of dataset sizes
-    plt.hist(sizes, 250)
-    plt.show()
-
-    return X, Y, X_test, Y_test, X_val, Y_val
+    return X, Y, X_test, Y_test
 
 def plot_data(name, data):
     plt.figure()
     plt.plot(data)
     plt.title(name)
 
-def train_model(dirname, epochs=300, batch_size=64):
-    X, Y, X_test, Y_test, X_val, Y_val = load_data(dirname)
-    print("Size of training set = {}, test set = {}, validation set = {}".format(X.shape[0], X_test.shape[0], X_val.shape[0]))
+def train_model(dirname, epochs=300, batch_size=64, val_split=0.2):
+    X, Y, X_test, Y_test = load_and_process_data(dirname)
+    print("Size of training set = {}, test set = {}".format(X.shape[0], X_test.shape[0]))
     model = build_model(Y.shape[1], X.shape[2])
-    history = model.fit(X, Y, epochs=epochs, batch_size=batch_size, validation_data=(X_val, Y_val))
+    history = model.fit(X, Y, epochs=epochs, batch_size=batch_size, validation_split=val_split)
     score, acc = model.evaluate(X_test, Y_test, batch_size=batch_size)
     print(model.predict(X_test))
 
