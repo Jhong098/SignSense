@@ -22,7 +22,7 @@ def build_model(labels, frame_dim):
     model = Sequential()
     model.add(keras.Input(shape = (TIMESTEPS, frame_dim)))
     model.add(layers.LSTM(64, name="lstm1", return_sequences=True))
-    model.add(layers.LSTM(32, name="lstm3"))
+    model.add(layers.LSTM(32, name="lstm2"))
     model.add(layers.Dense(labels, activation="softmax"))
     adam = Adam(lr = 0.0002)
     model.compile(loss='categorical_crossentropy',
@@ -34,14 +34,14 @@ def build_model(labels, frame_dim):
 
 def load_data(dirname):
     for sign in Path(dirname).iterdir():
-        for i, datafile in enumerate(sign.iterdir()):
+        for datafile in sign.iterdir():
             yield (holistic.read_datafile(datafile), sign.name)
 
 def truncate_data(data_iter, timesteps):
     for data, sign in iter(data_iter):
         if data.shape[0] > timesteps:
             data = data[:timesteps]
-            yield (data, sign)
+        yield (data, sign)
 
 def extend_data(data_iter, timesteps):
     for data, sign in iter(data_iter):
