@@ -18,11 +18,12 @@ import holistic
 TIMESTEPS = 120
 POINT_DIM = 3
 
-def build_model(labels, frame_dim):
+# hand_model: (0.15, 0.15)
+def build_model(labels, frame_dim, dropout=0.15, rec_dropout=0.15):
     model = Sequential()
     model.add(keras.Input(shape = (TIMESTEPS, frame_dim)))
-    model.add(layers.LSTM(64, name="lstm1", return_sequences=True))
-    model.add(layers.LSTM(32, name="lstm2"))
+    model.add(layers.LSTM(64, name="lstm1", dropout=dropout, recurrent_dropout=rec_dropout, return_sequences=True))
+    model.add(layers.LSTM(32, name="lstm2", dropout=dropout, recurrent_dropout=rec_dropout))
     model.add(layers.Dense(labels, activation="softmax"))
     adam = Adam(lr = 0.0002)
     model.compile(loss='categorical_crossentropy',
@@ -40,7 +41,8 @@ def load_data(dirname):
 def truncate_data(data_iter, timesteps):
     for data, sign in iter(data_iter):
         if data.shape[0] > timesteps:
-            start = random.randrange(0, data.shape[0] - timesteps)
+            # extract the middle frames of the video
+            start = int((data.shape[0] - timesteps) / 2)
             data = data[start:timesteps]
         yield (data, sign)
 
