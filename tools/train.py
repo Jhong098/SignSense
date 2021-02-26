@@ -1,5 +1,5 @@
+import random
 from collections import Counter
-from random import random
 from sys import argv
 from pathlib import Path
 import numpy as np
@@ -67,6 +67,7 @@ def load_and_process_data(dirname):
     data_iter = truncate_data(data_iter, TIMESTEPS)
     data_iter = extend_data(data_iter, TIMESTEPS)
     data, data_test = split_data(data_iter)    
+    random.shuffle(data)
 
     dataset = [d for d, w in data]
     words = [w for d, w in data]
