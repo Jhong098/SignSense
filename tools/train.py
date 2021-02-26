@@ -18,9 +18,9 @@ import holistic
 TIMESTEPS = 120
 POINT_DIM = 3
 
-# hand_model: (0.15, 0.15) 82% overfit?
-# hand_model2: (0.0, 0.0) 87.5% overfit?
-# hand_model2: (0.3, 0.3) 89.6%
+# hand_model: (0.0, 0.0) 87.5% overfit?
+# hand_model2: (0.15, 0.15) 82% overfit?
+# hand_model3: (0.3, 0.3) 89.6%
 def build_model(labels, frame_dim, dropout=0.3, rec_dropout=0.3):
     model = Sequential()
     model.add(keras.Input(shape = (TIMESTEPS, frame_dim)))
