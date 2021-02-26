@@ -43,7 +43,7 @@ def truncate_data(data_iter, timesteps):
         if data.shape[0] > timesteps:
             # extract the middle frames of the video
             start = int((data.shape[0] - timesteps) / 2)
-            data = data[start:timesteps]
+            data = data[start:start+timesteps]
         yield (data, sign)
 
 def extend_data(data_iter, timesteps):
@@ -67,8 +67,8 @@ def split_data(data_iter):
 
 def load_and_process_data(dirname):
     data_iter = load_data(dirname)
-    data_iter = truncate_data(data_iter, TIMESTEPS)
     data_iter = extend_data(data_iter, TIMESTEPS)
+    data_iter = truncate_data(data_iter, TIMESTEPS)
     data, data_test = split_data(data_iter)    
     random.shuffle(data)
 
