@@ -40,7 +40,8 @@ def load_data(dirname):
 def truncate_data(data_iter, timesteps):
     for data, sign in iter(data_iter):
         if data.shape[0] > timesteps:
-            data = data[:timesteps]
+            start = random.randrange(0, data.shape[0] - timesteps)
+            data = data[start:timesteps]
         yield (data, sign)
 
 def extend_data(data_iter, timesteps):
