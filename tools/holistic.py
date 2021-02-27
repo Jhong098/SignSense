@@ -92,7 +92,7 @@ def process_capture(cap, use_holistic):
             min_detection_confidence=0.5, min_tracking_confidence=0.2, upper_body_only=True)
     else:
         solution = mp.solutions.hands.Hands(
-            min_detection_confidence=0.7, min_tracking_confidence=0.5, max_num_hands=2)
+            min_detection_confidence=0.6, min_tracking_confidence=0.5, max_num_hands=2)
 
     while(cap.isOpened()):
         ret, image = cap.read()
@@ -160,6 +160,8 @@ def convert_video(infile, outfile, use_holistic):
         # both cv2.imshow's can be omitted if you don't want to see the software work in real time.
         # cv2.imshow('Frame', image)
         draw_landmarks(image, results, use_holistic)
+        cv2.putText(image, infile.split('/')[-1], (0,50),
+                            cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
         cv2.imshow('MediaPipe', image)
         out.write(image)
 
@@ -274,13 +276,17 @@ if __name__ == "__main__":
         convert_dataset(indir=arg1, outdir=arg2)
     elif cmd == "multi":
         dir = arg1+'/mp'
+        start_vid = arg2
         try:
             os.mkdir(dir)
         except:
             print("out dir already exists")
-        for f in os.listdir(arg1):
+        for i, f in enumerate(os.listdir(arg1)):
+            if i < int(start_vid):
+                continue
             if os.path.isdir(arg1+'/'+f):
                 continue
+            print("showing ", i)
             convert_video(arg1+'/'+f, dir+'/mp.'+f, False)
     else:
         print("Wrong command")
