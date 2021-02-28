@@ -1,4 +1,5 @@
-from random import random
+import random
+from collections import Counter
 from sys import argv
 from pathlib import Path
 import numpy as np
@@ -17,11 +18,14 @@ import holistic
 TIMESTEPS = 120
 POINT_DIM = 3
 
-def build_model(labels, frame_dim):
+# hand_model: (0.0, 0.0) 87.5% overfit?
+# hand_model2: (0.15, 0.15) 82% overfit?
+# hand_model3: (0.3, 0.3) 89.6%
+def build_model(labels, frame_dim, dropout=0.3, rec_dropout=0.3):
     model = Sequential()
     model.add(keras.Input(shape = (TIMESTEPS, frame_dim)))
-    model.add(layers.LSTM(64, name="lstm1", return_sequences=True))
-    model.add(layers.LSTM(32, name="lstm3"))
+    model.add(layers.LSTM(64, name="lstm1", dropout=dropout, recurrent_dropout=rec_dropout, return_sequences=True))
+    model.add(layers.LSTM(32, name="lstm2", dropout=dropout, recurrent_dropout=rec_dropout))
     model.add(layers.Dense(labels, activation="softmax"))
     adam = Adam(lr = 0.0002)
     model.compile(loss='categorical_crossentropy',
@@ -30,70 +34,97 @@ def build_model(labels, frame_dim):
     model.summary()
     return model
 
-TEST_SPLIT = 2
-VALIDATION_SPLIT = 2
+
+def get_labels(dirname):
+    return [sign.name for sign in Path(dirname).iterdir()]
+
 def load_data(dirname):
-    labels = []
-    words, words_test, words_val = [], [], []
-    dataset, dataset_test, dataset_val = [], [], []
-    sizes = []
-
     for sign in Path(dirname).iterdir():
-        labels.append(sign.name)
-        for i, datafile in enumerate(sign.iterdir()):
-            data = holistic.read_datafile(datafile)
-            sizes.append(data.shape[0])
-            if data.shape[0] > TIMESTEPS:
-                data = data[:TIMESTEPS]
-            # Zero-pad the data array
-            zeros = np.zeros( (TIMESTEPS-data.shape[0],) + data.shape[1:] )
+        for datafile in sign.iterdir():
+            yield (holistic.read_datafile(datafile), sign.name)
+
+def label_signs(data_iter, labels):
+    labels = {l:i+1 for i, l in enumerate(labels)}
+    for data, sign in iter(data_iter):
+        yield (data, labels[sign])
+
+def onehot_labelled_signs(data_iter, num_labels):
+    for data, sign in iter(data_iter):
+        onehot = np.zeros((num_labels + 1))
+        onehot[sign] = 1
+        yield (data, onehot)
+
+def truncate_data(data_iter, timesteps):
+    for data, sign in iter(data_iter):
+        if data.shape[0] > timesteps:
+            # extract the middle frames of the video
+            start = int((data.shape[0] - timesteps) / 2)
+            data = data[start:start+timesteps]
+        yield (data, sign)
+
+def extend_data(data_iter, timesteps):
+    for data, sign in iter(data_iter):
+        if data.shape[0] < timesteps:
+            zeros = np.zeros( (timesteps-data.shape[0],) + data.shape[1:] )
             data = np.concatenate((data, zeros), axis=0)
+        yield (data, sign)
 
-            data_loc = i % 10
-            if data_loc < TEST_SPLIT:
-                dataset_ref = dataset_test
-                words_ref = words_test
-            elif data_loc < TEST_SPLIT + VALIDATION_SPLIT:
-                dataset_ref = dataset_val
-                words_ref = words_val
-            else:
-                dataset_ref = dataset
-                words_ref = words
-            dataset_ref.append(data)
-            words_ref.append(sign.name)
+def add_gesture_zero(dataset, num_labels):
+    len_per_label = int(len(dataset) // num_labels)
+    zeros = [(np.zeros((TIMESTEPS, dataset[0][0].shape[1])), 0)] * len_per_label
+    return dataset + zeros
 
-    t = Tokenizer(filters="\n\t")
-    t.fit_on_texts(words)
-    Y = t.texts_to_matrix(words)
-    Y_test = t.texts_to_matrix(words_test)
-    Y_val = t.texts_to_matrix(words_val)
+TEST_SPLIT = 3
+def split_data(data_iter):
+    dataset, dataset_test = [], []
+    for i, (data, sign) in enumerate(data_iter):
+        data_loc = i % 10
+        if data_loc < TEST_SPLIT:
+            dataset_ref = dataset_test
+        else:
+            dataset_ref = dataset
+        dataset_ref.append((data, sign))
+    return (dataset, dataset_test)
+
+def load_and_process_data(dirname):
+    labels = get_labels(dirname)
+    data_iter = load_data(dirname)
+    data_iter = label_signs(data_iter, labels)
+    data_iter = add_gesture_zero(list(data_iter), len(labels))
+    data_iter = onehot_labelled_signs(data_iter, len(labels))
+    data_iter = extend_data(data_iter, TIMESTEPS)
+    data_iter = truncate_data(data_iter, TIMESTEPS)
+    data, data_test = split_data(data_iter)
+    random.shuffle(data)
+
+    dataset = [d for d, w in data]
+    words = [w for d, w in data]
+    dataset_test = [d for d, w in data_test]
+    words_test = [w for d, w in data_test]
 
     X = np.array(dataset)
     X_test = np.array(dataset_test)
-    X_val = np.array(dataset_val)
+    Y = np.array(words)
+    Y_test = np.array(words_test)
 
-    # print histogram of dataset sizes
-    plt.hist(sizes, 250)
-    plt.show()
+    return X, Y, X_test, Y_test
 
-    return X, Y, X_test, Y_test, X_val, Y_val
-
-def plot_data(name, data):
+def plot_data(history, name1, name2):
     plt.figure()
-    plt.plot(data)
-    plt.title(name)
+    plt.plot(history[name1], label=name1)
+    plt.plot(history[name2], label=name2)
+    plt.legend()
 
-def train_model(dirname, epochs=300, batch_size=64):
-    X, Y, X_test, Y_test, X_val, Y_val = load_data(dirname)
-    print("Size of training set = {}, test set = {}, validation set = {}".format(X.shape[0], X_test.shape[0], X_val.shape[0]))
+def train_model(dirname, epochs=300, batch_size=64, val_split=0.25):
+    X, Y, X_test, Y_test = load_and_process_data(dirname)
+    print("Size of training set = {}, test set = {}".format(X.shape[0], X_test.shape[0]))
     model = build_model(Y.shape[1], X.shape[2])
-    history = model.fit(X, Y, epochs=epochs, batch_size=batch_size, validation_data=(X_val, Y_val))
+    history = model.fit(X, Y, epochs=epochs, batch_size=batch_size, validation_split=val_split)
     score, acc = model.evaluate(X_test, Y_test, batch_size=batch_size)
-    print(model.predict(X_test))
 
     print("score: {} accuracy: {}".format(score, acc))
-    for name, data in history.history.items():
-        plot_data(name, data)
+    plot_data(history.history, 'loss', 'val_loss')
+    plot_data(history.history, 'accuracy', 'val_accuracy')
     plt.show()
     return model
 
