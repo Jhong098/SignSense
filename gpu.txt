@@ -1,0 +1,3 @@
+To use GPU with Tensorflow, install CUDA 11 and cuDNN 8 onto your system.
+If you don't have them already, delete your current CUDA installation and follow the steps at https://gist.github.com/kmhofmann/cee7c0053da8cc09d62d74a6a4c1c5e4. 
+Make sure you download version 460 of the driver. You'll have to create a Nvidia account to download cuDNN.
