@@ -14,7 +14,7 @@ import os
 import holistic
 import train
 
-labels = [None, 'A', 'B', 'C', 'Z']
+labels = [None, 'A', 'C', 'B', 'Z']
 feature_q = Queue()
 prediction_q = Queue()
 
