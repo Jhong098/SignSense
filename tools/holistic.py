@@ -93,7 +93,6 @@ def process_capture(cap, use_holistic):
     else:
         solution = mp.solutions.hands.Hands(
             min_detection_confidence=0.6, min_tracking_confidence=0.5, max_num_hands=2)
-
     while(cap.isOpened()):
         ret, image = cap.read()
         if ret == True:
@@ -118,9 +117,10 @@ def process_capture(cap, use_holistic):
 # Add landmarks onto input video and show the result
 
 
-def draw_landmarks(image, landmarks, use_holistic):
+def draw_landmarks(image, landmarks, use_holistic, tag=''):
     mp_drawing = mp.solutions.drawing_utils
     # Draw landmark annotation on the image.
+    height, width, _ = image.shape
     if use_holistic:
         mp_drawing.draw_landmarks(
             image, landmarks.left_hand_landmarks, mp.python.solutions.holistic.HAND_CONNECTIONS)
@@ -134,11 +134,13 @@ def draw_landmarks(image, landmarks, use_holistic):
             for idx, hand_handedness in enumerate(landmarks.multi_handedness):
                 handedness_dict = MessageToDict(hand_handedness)
                 hand = handedness_dict['classification'][0]["label"]
-                cv2.putText(image, hand, (int(1280*landmarks.multi_hand_landmarks[idx].landmark[0].x), int(720*landmarks.multi_hand_landmarks[idx].landmark[0].y)),
+                cv2.putText(image, hand, (int(width*landmarks.multi_hand_landmarks[idx].landmark[0].x), int(height*landmarks.multi_hand_landmarks[idx].landmark[0].y)),
                             cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
             for hand_landmarks in landmarks.multi_hand_landmarks:
                 mp_drawing.draw_landmarks(
                     image, hand_landmarks, mp.python.solutions.holistic.HAND_CONNECTIONS)
+    cv2.putText(image, tag, (10,50),
+                            cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
 
 
 def convert_video(infile, outfile, use_holistic):

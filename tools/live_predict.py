@@ -12,16 +12,14 @@ import atexit
 
 import holistic
 
+
 labels = [None, 'A', 'C', 'B', 'Z']
-feature_q = Queue()
-prediction_q = Queue()
 
 
-def live_predict(model_path, use_holistic):
-    PRINT_FREQ = 30
-    PRED_FREQ = 5
+PRINT_FREQ = 30
+PRED_FREQ = 5
 
-    def video_loop():
+def video_loop(feature_q, prediction_q, use_holistic):
         cap = cv2.VideoCapture(0)
         fourcc = cv2.VideoWriter_fourcc(*'mp4v')
         cap.set(cv2.CAP_PROP_FOURCC, fourcc)
@@ -33,10 +31,12 @@ def live_predict(model_path, use_holistic):
         width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
         mp_drawing = mp.solutions.drawing_utils
-
+        print("Awaiting start signal from predict")
         prediction_q.get()
         timestamp = None
         delay = 0
+        tag = ''
+        print("starting image cap")
         for image, results in holistic.process_capture(cap, use_holistic):
             newtime = time.time()
             if timestamp is not None:
@@ -48,14 +48,13 @@ def live_predict(model_path, use_holistic):
             row = holistic.to_landmark_row(results, use_holistic)
             feature_q.put(np.array(row))
 
-            holistic.draw_landmarks(image, results, use_holistic)
-            cv2.imshow("MediaPipe", image)
 
             try:
                 out = prediction_q.get_nowait()
                 prediction = np.argmax(out)
                 if delay >= PRINT_FREQ:
                     print("{} {}%".format(labels[prediction], out[0][prediction]*100))
+                    tag = labels[prediction]
                     delay = 0
                     if feature_q.qsize() > 5:
                         print("Warning: Model feature queue overloaded - size = {}".format(feature_q.qsize()))
@@ -63,18 +62,24 @@ def live_predict(model_path, use_holistic):
                 pass
 
             delay += 1
-    
-    def predict_loop():
+
+            holistic.draw_landmarks(image, results, use_holistic, tag)
+            cv2.imshow("MediaPipe", image)
+
+
+def predict_loop(feature_q, prediction_q):
         import tensorflow as tf
         import keras
         import train
-
+        print("Starting prediction init")
         train.init_gpu()
         model = keras.models.load_model(model_path)
-
+        print("Sending ready to video loop")
         prediction_q.put("start")
+
         delay = 0
         window = None
+        print("Starting prediction")
         while True:
             row = feature_q.get()
             if window is None:
@@ -91,13 +96,21 @@ def live_predict(model_path, use_holistic):
 
             delay += 1
 
-    p = Process(target=video_loop)
+def live_predict(model_path, use_holistic):
+
+    f_q = Queue()
+    p_q = Queue()
+
+    p = Process(target=video_loop, args = (f_q, p_q,use_holistic,))
     atexit.register(exit_handler, p)
     p.start()
-    predict_loop()
+    predict_loop(f_q, p_q)
 
 def exit_handler(p):
-    p.kill()
+    try:
+        p.kill()
+    except:
+        print("Couldn't kill video_loop")
 
 
 if __name__ == "__main__":
