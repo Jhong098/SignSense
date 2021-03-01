@@ -62,6 +62,7 @@ def live_predict(model, use_holistic):
             delay += 1
 
     else:
+        delay = 0
         window = None
         while True:
             row = feature_q.get()
@@ -72,8 +73,12 @@ def live_predict(model, use_holistic):
             window[:-1] = window[1:]
             window[-1] = row
 
-            out = model(np.array([window]))
-            prediction_q.put(out)
+            if delay >= 5:
+                out = model(np.array([window]))
+                prediction_q.put(out)
+                delay = 0
+
+            delay += 1
 
 if __name__ == "__main__":
     model_path = argv[1]
