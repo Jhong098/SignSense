@@ -6,21 +6,22 @@ import numpy as np
 import time
 import signal
 import sys
-import keras
-from multiprocessing import Queue
+from multiprocessing import Queue, Process
 from queue import Empty
-import os
+import atexit
 
 import holistic
-import train
 
 labels = [None, 'A', 'C', 'B', 'Z']
 feature_q = Queue()
 prediction_q = Queue()
 
 
-def live_predict(model, use_holistic):
-    if os.fork() != 0:
+def live_predict(model_path, use_holistic):
+    PRINT_FREQ = 30
+    PRED_FREQ = 5
+
+    def video_loop():
         cap = cv2.VideoCapture(0)
         fourcc = cv2.VideoWriter_fourcc(*'mp4v')
         cap.set(cv2.CAP_PROP_FOURCC, fourcc)
@@ -33,6 +34,7 @@ def live_predict(model, use_holistic):
         height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
         mp_drawing = mp.solutions.drawing_utils
 
+        prediction_q.get()
         timestamp = None
         delay = 0
         for image, results in holistic.process_capture(cap, use_holistic):
@@ -52,16 +54,25 @@ def live_predict(model, use_holistic):
             try:
                 out = prediction_q.get_nowait()
                 prediction = np.argmax(out)
-                if delay >= 30:
-                    print("{} {}%".format(labels[prediction], out[0][prediction]))
+                if delay >= PRINT_FREQ:
+                    print("{} {}%".format(labels[prediction], out[0][prediction]*100))
                     delay = 0
+                    if feature_q.qsize() > 5:
+                        print("Warning: Model feature queue overloaded - size = {}".format(feature_q.qsize()))
             except Empty:
-                if feature_q.qsize() > 5:
-                    print("Warning: Model feature queue overloaded - size = {}".format(feature_q.qsize()))
+                pass
 
             delay += 1
+    
+    def predict_loop():
+        import tensorflow as tf
+        import keras
+        import train
 
-    else:
+        train.init_gpu()
+        model = keras.models.load_model(model_path)
+
+        prediction_q.put("start")
         delay = 0
         window = None
         while True:
@@ -73,16 +84,24 @@ def live_predict(model, use_holistic):
             window[:-1] = window[1:]
             window[-1] = row
 
-            if delay >= 5:
+            if delay >= PRED_FREQ:
                 out = model(np.array([window]))
                 prediction_q.put(out)
                 delay = 0
 
             delay += 1
 
+    p = Process(target=video_loop)
+    atexit.register(exit_handler, p)
+    p.start()
+    predict_loop()
+
+def exit_handler(p):
+    p.kill()
+
+
 if __name__ == "__main__":
     model_path = argv[1]
-    model = keras.models.load_model(model_path)
 
     # Use MP Hands only
-    live_predict(model, False)
+    live_predict(model_path, False)
