@@ -18,14 +18,14 @@ import holistic
 TIMESTEPS = 120
 POINT_DIM = 3
 
-# hand_model: (0.0, 0.0) 87.5% overfit?
-# hand_model2: (0.15, 0.15) 82% overfit?
-# hand_model3: (0.3, 0.3) 89.6%
-def build_model(labels, frame_dim, dropout=0.3, rec_dropout=0.3):
+# hand_model: (0.0) 89.5% overfit?
+# hand_model2: (0.15) 90% overfit?
+# hand_model3: (0.3) 86%
+def build_model(labels, frame_dim, dropout=0.0):
     model = Sequential()
     model.add(keras.Input(shape = (TIMESTEPS, frame_dim)))
-    model.add(layers.LSTM(64, name="lstm1", dropout=dropout, recurrent_dropout=rec_dropout, return_sequences=True))
-    model.add(layers.LSTM(32, name="lstm2", dropout=dropout, recurrent_dropout=rec_dropout))
+    model.add(layers.LSTM(64, name="lstm1", dropout=dropout, return_sequences=True))
+    model.add(layers.LSTM(32, name="lstm2", dropout=dropout))
     model.add(layers.Dense(labels, activation="softmax"))
     adam = Adam(lr = 0.0002)
     model.compile(loss='categorical_crossentropy',
@@ -128,9 +128,16 @@ def train_model(dirname, epochs=300, batch_size=64, val_split=0.25):
     plt.show()
     return model
 
+def init_gpu():
+    gpus = tf.config.experimental.list_physical_devices('GPU')
+    for gpu in gpus:
+        tf.config.experimental.set_memory_growth(gpu, True)
+
 # Usage: data_dir [model_file]
 if __name__ == "__main__":
     data_dir = argv[1]
+    init_gpu()
+
     model = train_model(data_dir)
 
     if len(argv) >= 3:
