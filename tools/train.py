@@ -18,6 +18,10 @@ import holistic
 TIMESTEPS = 120
 POINT_DIM = 3
 
+# All static signs (as opposed to motion signs)
+HOLDS = set(['a', 'b', 'c'])
+
+
 # hand_model: (0.0) 89.5% overfit?
 # hand_model2: (0.15) 90% overfit?
 # hand_model3: (0.3) 86%
@@ -43,6 +47,11 @@ def load_data(dirname):
         for datafile in sign.iterdir():
             yield (holistic.read_datafile(datafile), sign.name)
 
+def count_labels(data_iter, count):
+    for data, sign in iter(data_iter):
+        count[sign] += 1
+        yield (data, sign)
+
 def label_signs(data_iter, labels):
     labels = {l:i+1 for i, l in enumerate(labels)}
     for data, sign in iter(data_iter):
@@ -54,13 +63,21 @@ def onehot_labelled_signs(data_iter, num_labels):
         onehot[sign] = 1
         yield (data, onehot)
 
-def truncate_data(data_iter, timesteps):
+def truncate_and_divide_data(data_iter, timesteps):
+    def generate_windows(data, sign, start, end):
+        while start + timesteps < min(end, data.shape[0]):
+            yield (data[start:start+timesteps], sign)
+            start += 10 # This is the stride
+
     for data, sign in iter(data_iter):
         if data.shape[0] > timesteps:
-            # extract the middle frames of the video
-            start = int((data.shape[0] - timesteps) / 2)
-            data = data[start:start+timesteps]
-        yield (data, sign)
+            if sign in HOLDS:
+                yield from generate_windows(data, sign, 30, data.shape[0] - 30)
+            else:
+                # extract the middle frames of the video
+                start = int((data.shape[0] - timesteps) / 2)
+                data = data[start:start+timesteps]
+                yield (data, sign)
 
 def extend_data(data_iter, timesteps):
     for data, sign in iter(data_iter):
@@ -88,12 +105,15 @@ def split_data(data_iter):
 
 def load_and_process_data(dirname):
     labels = get_labels(dirname)
+    count = Counter()
+
     data_iter = load_data(dirname)
+    data_iter = extend_data(data_iter, TIMESTEPS)
+    data_iter = truncate_and_divide_data(data_iter, TIMESTEPS)
+    data_iter = count_labels(data_iter, count)
     data_iter = label_signs(data_iter, labels)
     data_iter = add_gesture_zero(list(data_iter), len(labels))
     data_iter = onehot_labelled_signs(data_iter, len(labels))
-    data_iter = extend_data(data_iter, TIMESTEPS)
-    data_iter = truncate_data(data_iter, TIMESTEPS)
     data, data_test = split_data(data_iter)
     random.shuffle(data)
 
@@ -106,6 +126,8 @@ def load_and_process_data(dirname):
     X_test = np.array(dataset_test)
     Y = np.array(words)
     Y_test = np.array(words_test)
+
+    print(count)
 
     return X, Y, X_test, Y_test
 
