@@ -15,7 +15,7 @@ from tensorflow.keras.utils import to_categorical
 
 import holistic
 
-TIMESTEPS = 120
+TIMESTEPS = 60
 POINT_DIM = 3
 
 # All static signs (as opposed to motion signs)
@@ -64,20 +64,17 @@ def onehot_labelled_signs(data_iter, num_labels):
         yield (data, onehot)
 
 def truncate_and_divide_data(data_iter, timesteps):
-    def generate_windows(data, sign, start, end):
+    def generate_windows(data, sign, start, end, stride):
         while start + timesteps < min(end, data.shape[0]):
             yield (data[start:start+timesteps], sign)
-            start += 10 # This is the stride
+            start += stride
 
     for data, sign in iter(data_iter):
         if data.shape[0] > timesteps:
             if sign in HOLDS:
-                yield from generate_windows(data, sign, 30, data.shape[0] - 30)
+                yield from generate_windows(data, sign, 30, data.shape[0] - 30, 30)
             else:
-                # extract the middle frames of the video
-                start = int((data.shape[0] - timesteps) / 2)
-                data = data[start:start+timesteps]
-                yield (data, sign)
+                yield from generate_windows(data, sign, 10, data.shape[0], 10)
 
 def extend_data(data_iter, timesteps):
     for data, sign in iter(data_iter):
@@ -137,7 +134,7 @@ def plot_data(history, name1, name2):
     plt.plot(history[name2], label=name2)
     plt.legend()
 
-def train_model(dirname, epochs=300, batch_size=64, val_split=0.25):
+def train_model(dirname, epochs=100, batch_size=64, val_split=0.25):
     X, Y, X_test, Y_test = load_and_process_data(dirname)
     print("Size of training set = {}, test set = {}".format(X.shape[0], X_test.shape[0]))
     model = build_model(Y.shape[1], X.shape[2])
