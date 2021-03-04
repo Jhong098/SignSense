@@ -59,7 +59,7 @@ def label_signs(data_iter, labels):
 
 def onehot_labelled_signs(data_iter, num_labels):
     for data, sign in iter(data_iter):
-        onehot = np.zeros((num_labels + 1))
+        onehot = np.zeros(num_labels + 1)
         onehot[sign] = 1
         yield (data, onehot)
 
@@ -101,7 +101,7 @@ def split_data(data_iter):
     return (dataset, dataset_test)
 
 def load_and_process_data(dirname):
-    labels = get_labels(dirname)
+    labels = sorted(get_labels(dirname))
     count = Counter()
 
     data_iter = load_data(dirname)

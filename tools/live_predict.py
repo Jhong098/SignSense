@@ -13,7 +13,7 @@ import atexit
 import holistic
 
 
-labels = [None, 'A', 'C', 'B', 'Z']
+LABELS = [None, 'A', 'B', 'C', 'Z']
 
 
 PRINT_FREQ = 30
@@ -53,8 +53,8 @@ def video_loop(feature_q, prediction_q, use_holistic):
                 out = prediction_q.get_nowait()
                 prediction = np.argmax(out)
                 if delay >= PRINT_FREQ:
-                    print("{} {}%".format(labels[prediction], out[0][prediction]*100))
-                    tag = labels[prediction]
+                    print("{} {}%".format(LABELS[prediction], out[0][prediction]*100))
+                    tag = LABELS[prediction]
                     delay = 0
                     if feature_q.qsize() > 5:
                         print("Warning: Model feature queue overloaded - size = {}".format(feature_q.qsize()))
