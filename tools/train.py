@@ -25,7 +25,7 @@ HOLDS = set(['a', 'b', 'c'])
 # hand_model: (0.0) 89.5% overfit?
 # hand_model2: (0.15) 90% overfit?
 # hand_model3: (0.3) 86%
-def build_model(labels, frame_dim, dropout=0.0):
+def build_model(labels, frame_dim, dropout=0.3):
     model = Sequential()
     model.add(keras.Input(shape = (TIMESTEPS, frame_dim)))
     model.add(layers.LSTM(64, name="lstm1", dropout=dropout, return_sequences=True))
