@@ -18,6 +18,7 @@ LABELS = [None, 'A', 'B', 'C', 'Z']
 
 PRINT_FREQ = 30
 PRED_FREQ = 5
+assert PRINT_FREQ % PRED_FREQ == 0
 
 def video_loop(feature_q, prediction_q, use_holistic):
         cap = cv2.VideoCapture(0)
@@ -79,6 +80,8 @@ def predict_loop(feature_q, prediction_q):
 
         delay = 0
         window = None
+        results = None
+        results_len = PRINT_FREQ / PRED_FREQ
         print("Starting prediction")
         while True:
             row = feature_q.get()
@@ -91,7 +94,12 @@ def predict_loop(feature_q, prediction_q):
 
             if delay >= PRED_FREQ:
                 out = model(np.array([window]))
-                prediction_q.put(out)
+                if results is None:
+                    results = np.zeros((results_len, len(out)))
+                results[:-1] = results[1:]
+                results[-1] = out
+
+                prediction_q.put(np.mean(results, axis=0))
                 delay = 0
 
             delay += 1
