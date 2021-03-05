@@ -139,8 +139,8 @@ def draw_landmarks(image, landmarks, use_holistic, tag=''):
             for hand_landmarks in landmarks.multi_hand_landmarks:
                 mp_drawing.draw_landmarks(
                     image, hand_landmarks, mp.python.solutions.holistic.HAND_CONNECTIONS)
-    cv2.putText(image, tag, (10,50),
-                            cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
+    cv2.putText(image, tag, (10, 50),
+                cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
 
 
 def convert_video(infile, outfile, use_holistic):
@@ -162,8 +162,8 @@ def convert_video(infile, outfile, use_holistic):
         # both cv2.imshow's can be omitted if you don't want to see the software work in real time.
         # cv2.imshow('Frame', image)
         draw_landmarks(image, results, use_holistic)
-        cv2.putText(image, infile.split('/')[-1], (0,50),
-                            cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
+        cv2.putText(image, infile.split('/')[-1], (0, 50),
+                    cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
         cv2.imshow('MediaPipe', image)
         out.write(image)
 
@@ -205,7 +205,9 @@ def to_landmark_row(results, use_holistic):
                 hand_landmarks["Left"] = results.multi_hand_landmarks[0]
                 hand_landmarks["Right"] = results.multi_hand_landmarks[1]
             elif num_hands > 2:
-                exit("Too many hands")
+                hand_landmarks["Left"] = results.multi_hand_landmarks[0]
+                hand_landmarks["Right"] = results.multi_hand_landmarks[1]
+                print("Too many hands in frame, interpreting")
 
             # output format, always paired, in order Right, Left
         return list(itertools.chain(
@@ -256,6 +258,8 @@ def convert_dataset(indir, outdir):
 
         for video in os.listdir(signPath):
             vid_path = signPath+'/'+video
+            if os.path.isdir(vid_path):
+                continue
             print("Processing {}".format(vid_path))
             convert_datafile(vid_path,  dataPath +
                              '/'+video.split('.')[0])
