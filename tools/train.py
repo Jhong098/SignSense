@@ -70,11 +70,16 @@ def truncate_and_divide_data(data_iter, timesteps):
             start += stride
 
     for data, sign in iter(data_iter):
-        if data.shape[0] > timesteps:
+        datalen = data.shape[0]
+        if datalen > timesteps:
             if sign in HOLDS:
-                yield from generate_windows(data, sign, 30, data.shape[0] - 30, 30)
+                yield from generate_windows(data, sign, 30, datalen - 30, 30)
             else:
-                yield from generate_windows(data, sign, 10, data.shape[0], 10)
+                # If not even one window can be generated, then just take the back end of the data
+                if datalen - 30 < timesteps:
+                    yield (data[datalen - timesteps:], sign)
+                else:
+                    yield from generate_windows(data, sign, 30, datalen, 1)
 
 def extend_data(data_iter, timesteps):
     for data, sign in iter(data_iter):
