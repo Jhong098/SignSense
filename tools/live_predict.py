@@ -10,17 +10,21 @@ from multiprocessing import Queue, Process
 from queue import Empty
 import atexit
 from math import ceil
+from pathlib import Path
 
 import holistic
-
-
-LABELS = [None, 'A', 'B', 'C', 'Z']
 
 
 PRINT_FREQ = 30
 PRED_FREQ = 5
 assert PRINT_FREQ % PRED_FREQ == 0
 
+# Can't import this from train.py without importing tensorflow, which messes up everything
+def get_labels(dirname):
+    holds = [sign.name for sign in Path(dirname, 'holds_data').iterdir()]
+    nonholds = [sign.name for sign in Path(dirname, 'nonholds_data').iterdir()]
+    return [None] + sorted(holds + nonholds)
+LABELS = get_labels('data/')
 
 def video_loop(feature_q, prediction_q, use_holistic):
     cap = cv2.VideoCapture(0)

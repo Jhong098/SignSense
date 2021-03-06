@@ -18,9 +18,6 @@ import holistic
 TIMESTEPS = 60
 POINT_DIM = 3
 
-# All static signs (as opposed to motion signs)
-HOLDS = set(['a', 'b', 'c'])
-
 
 # hand_model: (0.0) 89.5% overfit?
 # hand_model2: (0.15) 90% overfit?
@@ -40,12 +37,18 @@ def build_model(labels, frame_dim, dropout=0.3):
 
 
 def get_labels(dirname):
-    return [sign.name for sign in Path(dirname).iterdir()]
+    holds = [sign.name for sign in Path(dirname, 'holds_data').iterdir()]
+    nonholds = [sign.name for sign in Path(dirname, 'nonholds_data').iterdir()]
+    return (sorted(holds + nonholds), set(holds))
 
 def load_data(dirname):
-    for sign in Path(dirname).iterdir():
+    for sign in Path(dirname, 'holds_data').iterdir():
         for datafile in sign.iterdir():
             yield (holistic.read_datafile(datafile), sign.name)
+    for sign in Path(dirname, 'nonholds_data').iterdir():
+        if sign.name != 'None':
+            for datafile in sign.iterdir():
+                yield (holistic.read_datafile(datafile), sign.name)
 
 def count_labels(data_iter, count):
     for data, sign in iter(data_iter):
@@ -63,7 +66,7 @@ def onehot_labelled_signs(data_iter, num_labels):
         onehot[sign] = 1
         yield (data, onehot)
 
-def truncate_and_divide_data(data_iter, timesteps):
+def truncate_and_divide_data(data_iter, timesteps, holds):
     def generate_windows(data, sign, start, end, stride):
         while start + timesteps < min(end, data.shape[0]):
             yield (data[start:start+timesteps], sign)
@@ -72,18 +75,22 @@ def truncate_and_divide_data(data_iter, timesteps):
     for data, sign in iter(data_iter):
         datalen = data.shape[0]
         if datalen > timesteps:
-            if sign in HOLDS:
+            if sign in holds:
                 yield from generate_windows(data, sign, 30, datalen - 30, 30)
             else:
+                trim = 15
                 # If not even one window can be generated, then just take the back end of the data
-                if datalen - 30 < timesteps:
+                if datalen - trim < timesteps:
                     yield (data[datalen - timesteps:], sign)
                 else:
-                    yield from generate_windows(data, sign, 30, datalen, 1)
+                    yield from generate_windows(data, sign, trim, datalen, 1)
+        else:
+            yield (data, sign)
 
 def extend_data(data_iter, timesteps):
     for data, sign in iter(data_iter):
         if data.shape[0] < timesteps:
+            #print("{} {}".format(sign, data.shape[0]))
             zeros = np.zeros( (timesteps-data.shape[0],) + data.shape[1:] )
             data = np.concatenate((data, zeros), axis=0)
         yield (data, sign)
@@ -106,12 +113,12 @@ def split_data(data_iter):
     return (dataset, dataset_test)
 
 def load_and_process_data(dirname):
-    labels = sorted(get_labels(dirname))
+    labels, holds = get_labels(dirname)
     count = Counter()
 
     data_iter = load_data(dirname)
     data_iter = extend_data(data_iter, TIMESTEPS)
-    data_iter = truncate_and_divide_data(data_iter, TIMESTEPS)
+    data_iter = truncate_and_divide_data(data_iter, TIMESTEPS, holds)
     data_iter = count_labels(data_iter, count)
     data_iter = label_signs(data_iter, labels)
     data_iter = add_gesture_zero(list(data_iter), len(labels))
