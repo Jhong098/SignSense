@@ -75,19 +75,18 @@ def generate_windows(data, sign, start, end, stride):
         yield (data[start:start+TIMESTEPS], sign)
         start += stride
 
-def truncate_and_divide_data(data_iter, holds):
+def truncate_and_divide_data(data_iter, holds, trim):
     for data, sign in iter(data_iter):
         datalen = data.shape[0]
         if datalen > TIMESTEPS:
             if sign in holds:
                 yield from generate_windows(data, sign, 30, datalen - 30, 30)
             else:
-                trim = 15
                 # If not even one window can be generated, then just take the back end of the data
                 if datalen - trim < TIMESTEPS:
                     yield (data[datalen - TIMESTEPS:], sign)
                 else:
-                    yield from generate_windows(data, sign, trim, datalen, 1)
+                    yield from generate_windows(data, sign, trim, datalen, 2)
         else:
             yield (data, sign)
 
@@ -131,7 +130,7 @@ def load_and_process_data(dirname):
 
     data_iter = load_data(dirname)
     data_iter = extend_data(data_iter)
-    data_iter = truncate_and_divide_data(data_iter, holds)
+    data_iter = truncate_and_divide_data(data_iter, holds, 0)
     data_iter = count_labels(data_iter, count)
     data_iter = label_signs(data_iter, labels)
     data_iter = add_gesture_zero(list(data_iter), len(labels))
