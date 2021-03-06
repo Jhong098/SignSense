@@ -46,13 +46,17 @@ def load_data(dirname):
         for datafile in sign.iterdir():
             yield (holistic.read_datafile(datafile), sign.name)
     for sign in Path(dirname, 'nonholds_data').iterdir():
-        if sign.name != 'None':
-            for datafile in sign.iterdir():
-                yield (holistic.read_datafile(datafile), sign.name)
+        for datafile in sign.iterdir():
+            yield (holistic.read_datafile(datafile), sign.name)
 
 def count_labels(data_iter, count):
     for data, sign in iter(data_iter):
         count[sign] += 1
+        yield (data, sign)
+def count_zeros(data_iter, count):
+    for data, sign in iter(data_iter):
+        if sign == 0:
+            count[None] += 1
         yield (data, sign)
 
 def label_signs(data_iter, labels):
@@ -66,32 +70,32 @@ def onehot_labelled_signs(data_iter, num_labels):
         onehot[sign] = 1
         yield (data, onehot)
 
-def truncate_and_divide_data(data_iter, timesteps, holds):
-    def generate_windows(data, sign, start, end, stride):
-        while start + timesteps < min(end, data.shape[0]):
-            yield (data[start:start+timesteps], sign)
-            start += stride
+def generate_windows(data, sign, start, end, stride):
+    while start + TIMESTEPS < min(end, data.shape[0]):
+        yield (data[start:start+TIMESTEPS], sign)
+        start += stride
 
+def truncate_and_divide_data(data_iter, holds):
     for data, sign in iter(data_iter):
         datalen = data.shape[0]
-        if datalen > timesteps:
+        if datalen > TIMESTEPS:
             if sign in holds:
                 yield from generate_windows(data, sign, 30, datalen - 30, 30)
             else:
                 trim = 15
                 # If not even one window can be generated, then just take the back end of the data
-                if datalen - trim < timesteps:
-                    yield (data[datalen - timesteps:], sign)
+                if datalen - trim < TIMESTEPS:
+                    yield (data[datalen - TIMESTEPS:], sign)
                 else:
                     yield from generate_windows(data, sign, trim, datalen, 1)
         else:
             yield (data, sign)
 
-def extend_data(data_iter, timesteps):
+def extend_data(data_iter):
     for data, sign in iter(data_iter):
-        if data.shape[0] < timesteps:
+        if data.shape[0] < TIMESTEPS:
             #print("{} {}".format(sign, data.shape[0]))
-            zeros = np.zeros( (timesteps-data.shape[0],) + data.shape[1:] )
+            zeros = np.zeros( (TIMESTEPS-data.shape[0],) + data.shape[1:] )
             data = np.concatenate((data, zeros), axis=0)
         yield (data, sign)
 
@@ -99,6 +103,14 @@ def add_gesture_zero(dataset, num_labels):
     len_per_label = int(len(dataset) // num_labels)
     zeros = [(np.zeros((TIMESTEPS, dataset[0][0].shape[1])), 0)] * len_per_label
     return dataset + zeros
+
+def add_none_data(data_iter, dirname):
+    for data, sign in iter(data_iter):
+        yield (data, sign)
+    for datafile in Path(dirname, 'None').iterdir():
+        data = holistic.read_datafile(datafile)
+        yield from generate_windows(data, 0, 0, data.shape[0], TIMESTEPS)
+
 
 TEST_SPLIT = 3
 def split_data(data_iter):
@@ -114,14 +126,17 @@ def split_data(data_iter):
 
 def load_and_process_data(dirname):
     labels, holds = get_labels(dirname)
+    print(labels)
     count = Counter()
 
     data_iter = load_data(dirname)
-    data_iter = extend_data(data_iter, TIMESTEPS)
-    data_iter = truncate_and_divide_data(data_iter, TIMESTEPS, holds)
+    data_iter = extend_data(data_iter)
+    data_iter = truncate_and_divide_data(data_iter, holds)
     data_iter = count_labels(data_iter, count)
     data_iter = label_signs(data_iter, labels)
     data_iter = add_gesture_zero(list(data_iter), len(labels))
+    data_iter = add_none_data(data_iter, dirname) # Comment out this line to exclude "None" data when training
+    data_iter = count_zeros(data_iter, count)
     data_iter = onehot_labelled_signs(data_iter, len(labels))
     data, data_test = split_data(data_iter)
     random.shuffle(data)
