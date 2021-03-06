@@ -1,40 +1,40 @@
-import threading
+
+# Sample UDP Server - Multi threaded
+
+ 
+
+# Import the necessary python modules
 import socketserver
+import threading
+ 
+# Create a tuple with IP Address and Port Number
+ServerAddress = ("127.0.0.1", 9999)
 
+# Subclass the DatagramRequestHandler
 
-class ThreadedUDPRequestHandler(socketserver.BaseRequestHandler):
+class MyUDPRequestHandler(socketserver.DatagramRequestHandler):
+    # Override the handle() method
+
     def handle(self):
-        data = self.request[0].strip()
-        current_thread = threading.current_thread()
-        print("Thread: {} client: {}, wrote: {}".format(
-            current_thread.name, self.client_address, data))
-        Split = threading.Thread(target=ParseIncomingData, args=(data,))
-        Split.start()
+        # Receive and print the datagram received from client
+        print("Recieved one request from {}".format(self.client_address[0]))
+
+        datagram = self.rfile.readline().strip()
+
+        print("Datagram Recieved from client is:".format(datagram))
+        print(datagram)  
+
+        # Print the name of the thread
+
+        print("Thread Name:{}".format(threading.current_thread().name))
+
+        # Send a message to the client
+
+        self.wfile.write("Message from Server! Hello Client".encode())
 
 
-class ThreadedUDPServer(socketserver.ThreadingMixIn, socketserver.UDPServer):
-    pass
+# Create a Server Instance
+UDPServerObject = socketserver.ThreadingUDPServer(ServerAddress, MyUDPRequestHandler)
 
-
-def publish_messages(data):
-    """Publishes multiple messages to a Pub/Sub topic."""
-    print('Published {} .'.format(data))
-
-
-def ParseIncomingData(message):
-    sender = threading.Thread(target=publish_messages, args=(message,))
-    sender.start()
-
-
-if __name__ == "__main__":
-    HOST, PORT = "0.0.0.0", 6071
-    try:
-        serverUDP = ThreadedUDPServer((HOST, PORT), ThreadedUDPRequestHandler)
-        server_thread_UDP = threading.Thread(target=serverUDP.serve_forever)
-        server_thread_UDP.daemon = True
-        server_thread_UDP.start()
-        serverUDP.serve_forever()
-    except (KeyboardInterrupt, SystemExit):
-        serverUDP.shutdown()
-        serverUDP.server_close()
-        exit()
+# Make the server wait forever serving connections
+UDPServerObject.serve_forever()
