@@ -135,3 +135,6 @@ dmypy.json
 node_modules/
 
 .DS_Store
+
+#ignore mediapipe validation output
+videos/*/*/mp
