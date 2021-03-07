@@ -70,8 +70,8 @@ def video_loop(feature_q, prediction_q, use_holistic):
                         "Warning: Model feature queue overloaded - size = {}".format(feature_q.qsize()))
                 print("--> ", end='')
                 for i, label in enumerate(out):
-                    print("{}:{} | ".format(LABELS[i], label), end='')
-                print()
+                    print("{}:{:.2f}% | ".format(LABELS[i], label*100), end='')
+                print("\n")
         except Empty:
             pass
 
