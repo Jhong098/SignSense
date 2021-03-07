@@ -1,18 +1,19 @@
 
-# Sample UDP Server - Multi threaded
-
-# Import the necessary python modules
 import socketserver
 import socket
 import threading
 import pathlib
 from sys import path, argv
+
 path.insert(1, './tools')
+import common
 
 from multiprocessing import Queue, Process
-from queue import Empty
+from queue import Empty, Full
 import atexit
 from math import ceil
+import numpy as np
+import asyncio
 
 import tensorflow as tf
 import keras
@@ -24,17 +25,16 @@ receiveAddressPort = ("127.0.0.1", 9998)
 
 # current working directory
 CURRENT_WORKING_DIRECTORY = pathlib.Path().absolute()
+
 DEFAULT_MODEL = 'holds_model2'
 
-f_q = Queue()
-p_q = Queue()
-
+# TODO: make this dynamic according to the data/videos?
+# prediction condigurations
 LABELS = [None, 'A', 'B', 'C', 'Z']
 
 PRINT_FREQ = 30
 PRED_FREQ = 5
-assert PRINT_FREQ % PRED_FREQ == 0
-
+MAX_QUEUE_LEN = 50
 
 class Message():
     def __init__(self, data, address):
@@ -44,31 +44,28 @@ class Message():
 class Error(Exception):
     pass
 
-class MyUDPRequestHandler(socketserver.DatagramRequestHandler):
-    # Override the handle() method
+# TODO: store landmarks based on the client to handle multiple clients
+class LandmarkReceiver(common.UDPRequestHandler):
+    def __init__(self, **kwargs):
+        super().__init__()
+        self.__dict__.update(kwargs)
 
-    def handle(self):
+    def datagram_received(self, data, addr):
         # Receive and print the datagram received from client
-        # print("Recieved one request from {}".format(self.client_address[0]))
+        # print(f"received datagram from {addr}")
+        try:
+            datagram = np.frombuffer(data)
 
-        datagram = self.rfile.readline().strip()
+            # print("Datagram Received from client is:".format(datagram))
+            # print(datagram)
 
-        # print("Datagram Received from client is:".format(datagram))
-        # print(datagram)
-
-        f_q.put(datagram)
-        # print(f"f_q len: {f_q.qsize()}")
-
-        # Print the name of the thread
-        # print("Thread Name:{}".format(threading.current_thread().name))
-
-
-        # # Send a message to the client
-        # self.wfile.write("Message from Server! Hello Client".encode())
+            self.f_q.put_nowait(datagram)
+        except Full:
+            # print("exception while receiving datagram")
+            pass
 
 
-def predict_loop(model_path):
-    print("Starting prediction init")
+def predict_loop(model_path, f_q, p_q):
     train.init_gpu()
     model = keras.models.load_model(model_path)
 
@@ -76,12 +73,16 @@ def predict_loop(model_path):
     window = None
     results = None
     results_len = ceil(PRINT_FREQ / PRED_FREQ)
+
+    p_q.put("start")
+
     print()
     print("====================Starting prediction===============")
     print()
+
     while True:
         row = f_q.get()
-        print("got smt")
+        
         if window is None:
             window = np.zeros((train.TIMESTEPS, len(row)))
 
@@ -97,17 +98,21 @@ def predict_loop(model_path):
             results[-1] = out
 
             p_q.put(np.mean(results, axis=0))
-            print("predicted smt")
             delay = 0
+    
         delay += 1
 
 
-def prediction_watcher():
+def prediction_watcher(f_q, p_q):
+    UDPClientSocket = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)
+    delay = 0
+
+    p_q.get()
+
     print()
     print("====================Started prediction watcher===============")
     print()
-    UDPClientSocket = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)
-    delay = 0
+
     while True:
         try:
             if delay >= PRINT_FREQ:
@@ -118,7 +123,10 @@ def prediction_watcher():
                     print("{} {}%".format(
                         LABELS[prediction], out[prediction]*100))
                     tag = LABELS[prediction]
-                    UDPClientSocket.sendto(str.encode(tag), receiveAddressPort)
+
+                    # send back prediction if it is a valid class
+                    if tag is not None:
+                        UDPClientSocket.sendto(tag.encode(), receiveAddressPort)
                 else:
                     print("None ({} {}% Below threshold)".format(
                         LABELS[prediction], out[prediction]*100))
@@ -132,45 +140,30 @@ def prediction_watcher():
 
         delay += 1
 
-# processes = []
-
 def live_predict(model_path, use_holistic):
-    predict_watcher = Process(target=prediction_watcher, args=())
-    atexit.register(exit_handler, predict_watcher)
+    # queue containing the landmark features from the client
+    f_q = Queue(MAX_QUEUE_LEN)
+
+    # queue containing the predictions
+    p_q = Queue(MAX_QUEUE_LEN)
+
+    # launch watcher process for checking and sending predictions back
+    predict_watcher = Process(target=prediction_watcher, args=(f_q, p_q,))
+    atexit.register(common.exit_handler, predict_watcher)
     predict_watcher.daemon = True
     predict_watcher.start()
 
-    udp_server = Process(target=start_server, args=())
-    atexit.register(exit_handler, udp_server)
-    udp_server.daemon = True
-    udp_server.start()
-    # start_server()
+    # launch process for predictions
+    predict = Process(target=predict_loop, args=(model_path, f_q, p_q,))
+    atexit.register(common.exit_handler, predict)
+    predict.daemon = True
+    predict.start()
     
-    # processes.append(predict_watcher)
-
-    predict_loop(model_path)
-    # predict_processor = Process(target=predict_loop, args=(model_path,))
-    # atexit.register(exit_handler, predict_processor)
-    # predict_processor.start()
-    # processes.append(predict_processor)
-
-
-def exit_handler(p):
-    try:
-        p.kill()
-    except:
-        print("Couldn't kill")
-
-
-def start_server():
-    print()
-    print("====================starting server===============")
-    print()
-    # Create a Server Instance
-    UDPServerObject = socketserver.ThreadingUDPServer(ServerAddress, MyUDPRequestHandler)
-
-    # Make the server wait forever serving connections
-    UDPServerObject.serve_forever()
+    # launch UDP server to receive landmark features
+    asyncio.run(common.start_server(
+        LandmarkReceiver(f_q=f_q, p_q=p_q),
+        ServerAddress
+    ))
 
 if __name__ == "__main__":
     if len(argv) < 2:
@@ -182,12 +175,6 @@ if __name__ == "__main__":
     
     print(f"using model {model_path}")
 
-    # udp_server = Process(target=start_server, args=())
-    # atexit.register(exit_handler, udp_server)
-    # udp_server.daemon = True
-    # udp_server.start()
-
-    # Use MP Hands only
     live_predict(model_path, False)
 
     
