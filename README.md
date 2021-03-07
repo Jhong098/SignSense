@@ -2,22 +2,23 @@
 
 ## Folder Structure
 
-`client/` contains the FE clients (Desktop Python script and Android)
+`client.py` contains the Python client that runs MediePipe on the webcam feed and displays predictions
 
-`tools/` contains all the Python scripts for training, processing, and predictions
+`server.py` contains the Python server that will run the prediction logic
 
-`server/` contains the multi-threaded Python server that will run the prediction logic
+`tools/` contains all the Python scripts for training, processing, predictions, and misc. utils
 
 `data/` contains the generated numpy data for training
 
-`videos/` contains the raw recorded ASL videos
-
-`models/` contains the trained models for the prediction script
+`models/` contains the trained models
 
 ## Running Locally
 
-## live predict with GPU (working on linux and Windows)
+Two options
+1. Run `client.py` and `server.py`
+2. Run `tools/live_predict.py`
 
+## Running with GPU (working on linux and Windows)
 
 To use GPU with Tensorflow, install CUDA 11 and cuDNN 8 onto your system.
 If you don't have them already, delete your current CUDA installation and follow the steps at https://gist.github.com/kmhofmann/cee7c0053da8cc09d62d74a6a4c1c5e4. 

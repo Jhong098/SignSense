@@ -9,9 +9,7 @@ class UDPRequestHandler(asyncio.DatagramProtocol):
         self.transport = transport
 
 async def start_server(handler, addr):
-    print()
-    print("==================starting server===============")
-    print()
+    print_debug_banner("STARTING SERVER")
 
     loop = asyncio.get_running_loop()
     transport = await loop.create_datagram_endpoint(
@@ -35,3 +33,6 @@ def get_labels(dirname):
     holds = [sign.name for sign in Path(dirname, 'holds_data').iterdir()]
     nonholds = [sign.name for sign in Path(dirname, 'nonholds_data').iterdir()]
     return [None] + sorted(holds + nonholds)
+
+def print_debug_banner(msg):
+    print(f"\n================={msg}===============\n")

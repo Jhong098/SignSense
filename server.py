@@ -18,6 +18,9 @@ import asyncio
 import tensorflow as tf
 import keras
 import train
+
+# print debug messages
+DEBUG = True
  
 # Create a tuple with IP Address and Port Number
 ServerAddress = ("127.0.0.1", 9999)
@@ -74,9 +77,8 @@ def predict_loop(model_path, f_q, p_q):
 
     p_q.put("start")
 
-    print()
-    print("====================Starting prediction===============")
-    print()
+    if DEBUG:
+        common.print_debug_banner("STARTED PREDICTION")
 
     while True:
         row = f_q.get()
@@ -107,15 +109,15 @@ def prediction_watcher(f_q, p_q):
 
     p_q.get()
 
-    print()
-    print("====================Started prediction watcher===============")
-    print()
+    if DEBUG:
+        common.print_debug_banner("STARTED PREDICTION WATCHER")
 
     while True:
         try:
             if delay >= PRINT_FREQ:
                 out = p_q.get_nowait()
                 prediction = np.argmax(out)
+
                 # send confident prediction
                 if out[prediction] > .8:
                     print("{} {}%".format(
@@ -130,9 +132,10 @@ def prediction_watcher(f_q, p_q):
                         LABELS[prediction], out[prediction]*100))
 
                 delay = 0
-                if f_q.qsize() > 5:
+
+                if DEBUG and f_q.qsize() > 5:
                     print(
-                        "Warning: Model feature queue overloaded - size = {}".format(f_q.qsize()))
+                        f"Warning: Model feature queue overloaded - size = {f_q.qsize()}")
         except Empty:
             pass
 
@@ -171,7 +174,8 @@ if __name__ == "__main__":
     else:
         model_path = argv[1]    
     
-    print(f"using model {model_path}")
+    if DEBUG:
+        print(f"using model {model_path}")
 
     live_predict(model_path, False)
 
