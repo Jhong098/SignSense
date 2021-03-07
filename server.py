@@ -2,7 +2,7 @@
 import socketserver
 import socket
 import threading
-import pathlib
+from pathlib import Path
 from sys import path, argv
 
 path.insert(1, './tools')
@@ -24,13 +24,11 @@ ServerAddress = ("127.0.0.1", 9999)
 receiveAddressPort = ("127.0.0.1", 9998)
 
 # current working directory
-CURRENT_WORKING_DIRECTORY = pathlib.Path().absolute()
+CURRENT_WORKING_DIRECTORY = Path().absolute()
 
-DEFAULT_MODEL = 'holds_model2'
+DEFAULT_MODEL = list((CURRENT_WORKING_DIRECTORY/'models').iterdir())[-1]
 
-# TODO: make this dynamic according to the data/videos?
-# prediction condigurations
-LABELS = [None, 'A', 'B', 'C', 'Z']
+LABELS = common.get_labels('data/')
 
 PRINT_FREQ = 30
 PRED_FREQ = 5

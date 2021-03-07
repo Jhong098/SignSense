@@ -1,4 +1,5 @@
 import asyncio
+from pathlib import Path
 
 class UDPRequestHandler(asyncio.DatagramProtocol):
     def __init__(self):
@@ -29,3 +30,8 @@ def exit_handler(p):
         p.kill()
     except:
         print("Couldn't kill")
+
+def get_labels(dirname):
+    holds = [sign.name for sign in Path(dirname, 'holds_data').iterdir()]
+    nonholds = [sign.name for sign in Path(dirname, 'nonholds_data').iterdir()]
+    return [None] + sorted(holds + nonholds)
