@@ -80,7 +80,7 @@ def truncate_and_divide_data(data_iter, holds, trim):
         datalen = data.shape[0]
         if datalen > TIMESTEPS:
             if sign in holds:
-                yield from generate_windows(data, sign, 30, datalen - 30, 30)
+                yield from generate_windows(data, sign, max(0, 30-TIMESTEPS/2), datalen - 30, 30)
             else:
                 # If not even one window can be generated, then just take the back end of the data
                 if datalen - trim < TIMESTEPS:
