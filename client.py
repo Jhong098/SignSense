@@ -14,6 +14,7 @@ from queue import Empty
 import atexit
 from math import ceil
 import asyncio
+import pickle
 
 sys.path.insert(1, './tools')
 import holistic, common
@@ -21,7 +22,7 @@ import holistic, common
 PRINT_FREQ = 30
 
 # Server IP address and Port number
-serverAddressPort   = ("127.0.0.1", 9999)
+serverAddressPort = ("127.0.0.1", 9999)
 receiveAddressPort = ("127.0.0.1", 9998)
 
 APP_NAME = "SignSense"
@@ -36,7 +37,7 @@ class PredictionReceiver(common.UDPRequestHandler):
         # print(f"received datagram from {addr}")
         try:
             datagram = data.decode()
-            print(f"Datagram Received from client is: {datagram}")
+            print(f"prediction received from server is: {datagram}")
             self.p_q.put(datagram)
         except:
             print("exception while receiving datagram")
@@ -83,8 +84,11 @@ def video_loop(p_q, use_holistic=False):
         timestamp = newtime
 
         row = holistic.to_landmark_row(results, use_holistic)
-        # feature_q.put(np.array(row))
-        send_feature_thread = threading.Thread(target=Connect2Server(np.array(row).tobytes()))
+
+        # send list of flattened landmarks in bytes to server
+        send_feature_thread = threading.Thread(
+            target=Connect2Server(pickle.dumps(row))
+        )
         send_feature_thread.start()
         send_feature_thread.join()
 

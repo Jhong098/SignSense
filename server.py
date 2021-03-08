@@ -19,6 +19,8 @@ import tensorflow as tf
 import keras
 import train
 
+import pickle
+
 # print debug messages
 DEBUG = True
  
@@ -55,12 +57,13 @@ class LandmarkReceiver(common.UDPRequestHandler):
         # Receive and print the datagram received from client
         # print(f"received datagram from {addr}")
         try:
-            datagram = np.frombuffer(data)
 
-            # print("Datagram Received from client is:".format(datagram))
-            # print(datagram)
+            # datagram = np.frombuffer(data)
+            # print(f"transport", self.transport)
+            # print("Datagram Received from client")
+            # print()
 
-            self.f_q.put_nowait(datagram)
+            self.f_q.put_nowait(np.array(pickle.loads(data)))
         except Full:
             # print("exception while receiving datagram")
             pass
