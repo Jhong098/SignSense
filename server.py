@@ -9,6 +9,7 @@ path.insert(1, './tools')
 import common, encrypt
 
 from multiprocessing import Queue, Process, Manager, Value
+from ctypes import c_char_p
 from queue import Empty, Full
 import atexit
 from math import ceil
@@ -25,8 +26,8 @@ import train
 DEBUG = True
  
 # Create a tuple with IP Address and Port Number
-ServerAddress = ("127.0.0.1", 9999)
-receiveAddressPort = ("127.0.0.1", 9998)
+SERVER_ADDR = ("0.0.0.0", 9999)
+PRED_PORT = 9998
 
 # current working directory
 CURRENT_WORKING_DIRECTORY = Path().absolute()
@@ -37,7 +38,7 @@ LABELS = common.get_labels('data/')
 
 PRINT_FREQ = 30
 PRED_FREQ = 5
-MAX_QUEUE_LEN = 50
+MAX_QUEUE_LEN = 25
 CONFIDENCE_THRESHOLD = 0.4
 
 class Message():
@@ -46,6 +47,9 @@ class Message():
         self.address = address
 
 class Error(Exception):
+    pass
+
+class InvalidIPException(Exception):
     pass
 
 # TODO: store landmarks based on the client to handle multiple clients
@@ -57,9 +61,8 @@ class LandmarkReceiver(common.UDPRequestHandler):
     def datagram_received(self, data, addr):
         # Receive and print the datagram received from client
         # print(f"received datagram from {addr}")
+
         try:
-            # print("Datagram Received from client")
-            # print()
             datagram = data.decode()
             decrypted_data = encrypt.decrypt_chacha(datagram).decode()
             # print(decrypted_data.decode())
@@ -67,6 +70,11 @@ class LandmarkReceiver(common.UDPRequestHandler):
             # print(datagram)
             # print(landmark_arr.shape)
             self.f_q.put_nowait(landmark_arr)
+
+            # set the IP address if it is empty
+            if self.ip.value == "":
+                common.print_debug_banner(f"SETTING IP TO: {addr[0]}")
+                self.ip.value = addr[0]
         except Exception as e:
             # print(e)
             pass
@@ -78,7 +86,7 @@ class LandmarkReceiver(common.UDPRequestHandler):
         #     pass
 
 
-def predict_loop(model_path, f_q, p_q):
+def predict_loop(model_path, f_q, p_q, ip):
     train.init_gpu()
     model = keras.models.load_model(model_path)
 
@@ -115,7 +123,7 @@ def predict_loop(model_path, f_q, p_q):
         delay += 1
 
 
-def prediction_watcher(f_q, p_q):
+def prediction_watcher(f_q, p_q, ip):
     UDPClientSocket = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)
     delay = 0
 
@@ -138,7 +146,10 @@ def prediction_watcher(f_q, p_q):
 
                     # send back prediction if it is a valid class
                     if tag is not None:
-                        UDPClientSocket.sendto(tag.encode(), receiveAddressPort)
+                        if ip.value == "":
+                            raise InvalidIPException("NO VALID IP WAS FOUND")
+
+                        UDPClientSocket.sendto(tag.encode(), (ip.value, PRED_PORT))
                 else:
                     print("None ({} {}% Below threshold)".format(
                         LABELS[prediction], out[prediction]*100))
@@ -155,7 +166,9 @@ def prediction_watcher(f_q, p_q):
         delay += 1
 
 def live_predict(model_path, use_holistic):
-    # manager = Manager()
+    # initialize shared IP string
+    manager = Manager()
+    client_ip = manager.Value(c_char_p, "")
 
     # queue containing the landmark features from the client
     f_q = Queue(MAX_QUEUE_LEN)
@@ -164,21 +177,21 @@ def live_predict(model_path, use_holistic):
     p_q = Queue(MAX_QUEUE_LEN)
 
     # launch watcher process for checking and sending predictions back
-    predict_watcher = Process(target=prediction_watcher, args=(f_q, p_q,))
+    predict_watcher = Process(target=prediction_watcher, args=(f_q, p_q, client_ip,))
     atexit.register(common.exit_handler, predict_watcher)
     predict_watcher.daemon = True
     predict_watcher.start()
 
     # launch process for predictions
-    predict = Process(target=predict_loop, args=(model_path, f_q, p_q,))
+    predict = Process(target=predict_loop, args=(model_path, f_q, p_q, client_ip,))
     atexit.register(common.exit_handler, predict)
     predict.daemon = True
     predict.start()
     
     # launch UDP server to receive landmark features
     asyncio.run(common.start_server(
-        LandmarkReceiver(f_q=f_q, p_q=p_q),
-        ServerAddress
+        LandmarkReceiver(f_q=f_q, p_q=p_q, ip=client_ip),
+        SERVER_ADDR
     ))
 
 if __name__ == "__main__":
