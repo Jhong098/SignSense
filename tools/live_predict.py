@@ -58,7 +58,7 @@ def video_loop(feature_q, prediction_q, use_holistic):
             out = prediction_q.get_nowait()
             prediction = np.argmax(out)
             if delay >= PRINT_FREQ:
-                if out[prediction] > .8:
+                if out[prediction] > .6:
                     print("{} {}%".format(
                         LABELS[prediction], out[prediction]*100))
                     tag = LABELS[prediction]
