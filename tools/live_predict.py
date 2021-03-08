@@ -15,6 +15,8 @@ from pathlib import Path
 import holistic
 import common
 
+USE_HOLISTIC = True
+
 
 PRINT_FREQ = 30
 PRED_FREQ = 5
@@ -140,4 +142,4 @@ if __name__ == "__main__":
     model_path = argv[1]
 
     # Use MP Hands only
-    live_predict(model_path, True)
+    live_predict(model_path, USE_HOLISTIC)
