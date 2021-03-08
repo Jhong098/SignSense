@@ -124,10 +124,16 @@ def draw_landmarks(image, landmarks, use_holistic, tag=''):
     if use_holistic:
         mp_drawing.draw_landmarks(
             image, landmarks.left_hand_landmarks, mp.python.solutions.holistic.HAND_CONNECTIONS)
+        if landmarks.left_hand_landmarks:
+            cv2.putText(image, "L", (int(width*landmarks.left_hand_landmarks.landmark[0].x), int(height*landmarks.left_hand_landmarks.landmark[0].y)),
+                        cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
         mp_drawing.draw_landmarks(
             image, landmarks.right_hand_landmarks, mp.python.solutions.holistic.HAND_CONNECTIONS)
-        mp_drawing.draw_landmarks(
-            image, landmarks.pose_landmarks, UPPER_BODY_CONNECTIONS)
+        if landmarks.right_hand_landmarks:
+            cv2.putText(image, "R", (int(width*landmarks.right_hand_landmarks.landmark[0].x), int(height*landmarks.right_hand_landmarks.landmark[0].y)),
+                        cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
+        # mp_drawing.draw_landmarks(
+        #     image, landmarks.pose_landmarks, UPPER_BODY_CONNECTIONS)
     else:
 
         if landmarks.multi_hand_landmarks:
@@ -181,9 +187,8 @@ def to_landmark_row(results, use_holistic):
 
     if use_holistic:
         return list(itertools.chain(
-            to_list(results.left_hand_landmarks, HAND_LANDMARK_COUNT),
             to_list(results.right_hand_landmarks, HAND_LANDMARK_COUNT),
-            to_list(results.pose_landmarks, POSE_LANDMARK_COUNT),
+            to_list(results.left_hand_landmarks, HAND_LANDMARK_COUNT),
         ))
     else:
         # NOTE THESE ARE CAMERA RELATIVE POSITIONS, RIGHT IS ACTUALLY THE SUBJECT's LEFT HAND, and vice versa

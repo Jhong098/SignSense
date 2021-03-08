@@ -15,8 +15,10 @@ stop_recording = threading.Event()
 ready = threading.Event()
 quit = threading.Event()
 
+
 def signal_handler(sig, frame):
     sys.exit(0)
+
 
 def recorder():
     # change the file path below to the video you want to output
@@ -35,14 +37,15 @@ def recorder():
     i = 0
 
     ready.set()
-    for image, results in holistic.process_capture(cap, False):
+    for image, results in holistic.process_capture(cap, True):
         if quit.is_set():
             break
 
         if start_recording.is_set():
             print("Recording")
             try:
-                out = cv2.VideoWriter("vid{}.mp4".format(i), fourcc, fps, (width, height))
+                out = cv2.VideoWriter("vid{}.mp4".format(
+                    i), fourcc, fps, (width, height))
 
             except e:
                 print(e)
@@ -65,10 +68,10 @@ def recorder():
 
         if recording:
             out.write(image)
-            data.append(holistic.to_landmark_row(results, False))
+            data.append(holistic.to_landmark_row(results, True))
 
         cv2.imshow('Input', image)
-        holistic.draw_landmarks(image, results, False)
+        holistic.draw_landmarks(image, results, True)
         cv2.imshow("MediaPipe", image)
     return
 

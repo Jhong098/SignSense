@@ -140,4 +140,4 @@ if __name__ == "__main__":
     model_path = argv[1]
 
     # Use MP Hands only
-    live_predict(model_path, False)
+    live_predict(model_path, True)
