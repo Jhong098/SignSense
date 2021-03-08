@@ -12,7 +12,8 @@ import atexit
 from math import ceil
 from pathlib import Path
 
-import holistic, common
+import holistic
+import common
 
 
 PRINT_FREQ = 30
@@ -20,6 +21,7 @@ PRED_FREQ = 5
 assert PRINT_FREQ % PRED_FREQ == 0
 
 LABELS = common.get_labels('data/')
+
 
 def video_loop(feature_q, prediction_q, use_holistic):
     cap = cv2.VideoCapture(0)
@@ -66,6 +68,10 @@ def video_loop(feature_q, prediction_q, use_holistic):
                 if feature_q.qsize() > 5:
                     print(
                         "Warning: Model feature queue overloaded - size = {}".format(feature_q.qsize()))
+                print("--> ", end='')
+                for i, label in enumerate(out):
+                    print("{}:{:.2f}% | ".format(LABELS[i], label*100), end='')
+                print("\n")
         except Empty:
             pass
 
