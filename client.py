@@ -85,9 +85,9 @@ def video_loop(p_q, use_holistic=False):
 
         row = holistic.to_landmark_row(results, use_holistic)
 
-        # send list of flattened landmarks in bytes to server
+        # send comma delimited str of flattened landmarks in bytes to server
         send_feature_thread = threading.Thread(
-            target=Connect2Server(pickle.dumps(row))
+            target=Connect2Server(','.join(np.array(row).astype(np.str)).encode())
         )
         send_feature_thread.start()
         send_feature_thread.join()

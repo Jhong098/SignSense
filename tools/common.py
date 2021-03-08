@@ -36,3 +36,9 @@ def get_labels(dirname):
 
 def print_debug_banner(msg):
     print(f"\n================={msg}===============\n")
+
+def print_prediction_probs(out, labels):
+    print("--> ", end='')
+    for i, label in enumerate(out):
+        print("{}:{:.2f}% | ".format(labels[i], label*100), end='')
+    print("\n")

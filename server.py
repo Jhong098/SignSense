@@ -8,7 +8,7 @@ from sys import path, argv
 path.insert(1, './tools')
 import common
 
-from multiprocessing import Queue, Process
+from multiprocessing import Queue, Process, Manager, Value
 from queue import Empty, Full
 import atexit
 from math import ceil
@@ -19,14 +19,14 @@ import tensorflow as tf
 import keras
 import train
 
-import pickle
+# import pickle
 
 # print debug messages
 DEBUG = True
  
 # Create a tuple with IP Address and Port Number
-ServerAddress = ("127.0.0.1", 9999)
-receiveAddressPort = ("127.0.0.1", 9998)
+ServerAddress = ("0.0.0.0", 9999)
+receiveAddressPort = ("76.71.106.223", 9998)
 
 # current working directory
 CURRENT_WORKING_DIRECTORY = Path().absolute()
@@ -38,6 +38,7 @@ LABELS = common.get_labels('data/')
 PRINT_FREQ = 30
 PRED_FREQ = 5
 MAX_QUEUE_LEN = 50
+CONFIDENCE_THRESHOLD = 0.4
 
 class Message():
     def __init__(self, data, address):
@@ -57,16 +58,22 @@ class LandmarkReceiver(common.UDPRequestHandler):
         # Receive and print the datagram received from client
         # print(f"received datagram from {addr}")
         try:
-
-            # datagram = np.frombuffer(data)
-            # print(f"transport", self.transport)
             # print("Datagram Received from client")
             # print()
-
-            self.f_q.put_nowait(np.array(pickle.loads(data)))
-        except Full:
-            # print("exception while receiving datagram")
+            datagram = data.decode()
+            landmark_arr = np.array([float(i.strip()) for i in datagram.split(",")])
+            # print(datagram)
+            # print(landmark_arr.shape)
+            self.f_q.put_nowait(landmark_arr)
+        except Exception as e:
+            # print(e)
             pass
+        # except Full:
+        #     # print("exception while receiving datagram")
+        #     pass
+        # except UnicodeDecodeError:
+        #     print("unicode decode error")
+        #     pass
 
 
 def predict_loop(model_path, f_q, p_q):
@@ -122,7 +129,7 @@ def prediction_watcher(f_q, p_q):
                 prediction = np.argmax(out)
 
                 # send confident prediction
-                if out[prediction] > .8:
+                if out[prediction] > CONFIDENCE_THRESHOLD:
                     print("{} {}%".format(
                         LABELS[prediction], out[prediction]*100))
                     tag = LABELS[prediction]
@@ -139,12 +146,15 @@ def prediction_watcher(f_q, p_q):
                 if DEBUG and f_q.qsize() > 5:
                     print(
                         f"Warning: Model feature queue overloaded - size = {f_q.qsize()}")
+                common.print_prediction_probs(out, LABELS)
         except Empty:
             pass
 
         delay += 1
 
 def live_predict(model_path, use_holistic):
+    # manager = Manager()
+
     # queue containing the landmark features from the client
     f_q = Queue(MAX_QUEUE_LEN)
 
