@@ -15,7 +15,7 @@ from pathlib import Path
 import holistic
 import common
 
-USE_HOLISTIC = True
+USE_HOLISTIC = False
 
 
 PRINT_FREQ = 30
