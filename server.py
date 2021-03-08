@@ -6,7 +6,7 @@ from pathlib import Path
 from sys import path, argv
 
 path.insert(1, './tools')
-import common
+import common, encrypt
 
 from multiprocessing import Queue, Process, Manager, Value
 from queue import Empty, Full
@@ -25,8 +25,8 @@ import train
 DEBUG = True
  
 # Create a tuple with IP Address and Port Number
-ServerAddress = ("0.0.0.0", 9999)
-receiveAddressPort = ("76.71.106.223", 9998)
+ServerAddress = ("127.0.0.1", 9999)
+receiveAddressPort = ("127.0.0.1", 9998)
 
 # current working directory
 CURRENT_WORKING_DIRECTORY = Path().absolute()
@@ -61,7 +61,9 @@ class LandmarkReceiver(common.UDPRequestHandler):
             # print("Datagram Received from client")
             # print()
             datagram = data.decode()
-            landmark_arr = np.array([float(i.strip()) for i in datagram.split(",")])
+            decrypted_data = encrypt.decrypt_chacha(datagram).decode()
+            # print(decrypted_data.decode())
+            landmark_arr = np.array([float(i.strip()) for i in decrypted_data.split(",")])
             # print(datagram)
             # print(landmark_arr.shape)
             self.f_q.put_nowait(landmark_arr)
