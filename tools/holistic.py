@@ -182,14 +182,12 @@ def convert_video(infile, outfile, use_holistic):
 def to_landmark_row(results, use_holistic):
     def to_list(landmark_list, list_size):
         if landmark_list is None:
-            return itertools.repeat(0.0, list_size * 3)
-        return (c for landmark in landmark_list.landmark for c in [landmark.x, landmark.y, landmark.z])
+            return [[0.0, 0.0, 0.0]] * list_size
+        return [[landmark.x, landmark.y, landmark.z] for landmark in landmark_list.landmark]
 
     if use_holistic:
-        return list(itertools.chain(
-            to_list(results.right_hand_landmarks, HAND_LANDMARK_COUNT),
-            to_list(results.left_hand_landmarks, HAND_LANDMARK_COUNT),
-        ))
+        right = np.array(to_list(results.right_hand_landmarks, HAND_LANDMARK_COUNT))
+        left = np.array(to_list(results.left_hand_landmarks, HAND_LANDMARK_COUNT))
     else:
         # NOTE THESE ARE CAMERA RELATIVE POSITIONS, RIGHT IS ACTUALLY THE SUBJECT's LEFT HAND, and vice versa
         hand_landmarks = {"Left": None, "Right": None}
@@ -214,13 +212,24 @@ def to_landmark_row(results, use_holistic):
                 hand_landmarks["Right"] = results.multi_hand_landmarks[1]
                 print("Too many hands in frame, interpreting")
 
-            # output format, always paired, in order Right, Left
-        return list(itertools.chain(
-            # PoV left = right hand
-            to_list(hand_landmarks["Left"], HAND_LANDMARK_COUNT),
-            # PoV right = left hand
-            to_list(hand_landmarks["Right"], HAND_LANDMARK_COUNT),
-        ))
+        # PoV left = right hand
+        right = np.array(to_list(hand_landmarks["Left"], HAND_LANDMARK_COUNT))
+        # PoV right = left hand
+        left = np.array(to_list(hand_landmarks["Right"], HAND_LANDMARK_COUNT))
+
+    def normalize(hand_data):
+        avg = np.mean(hand_data[:, 0:2], axis=0) # ignore the average for the z axis
+        for i in range(3):
+            high = hand_data[:, i].max()
+            low = hand_data[:, i].min()
+            diff = high - low
+            if diff > 0.0:
+                hand_data[:, i] = (hand_data[:, i] - low) / diff
+        return hand_data, avg
+
+    rh, ra = normalize(right)
+    lh, la = normalize(left)
+    return np.concatenate((rh.flatten(), lh.flatten(), ra, la))
 
 
 def convert_array(infile):

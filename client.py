@@ -17,7 +17,7 @@ import asyncio
 import pickle
 
 sys.path.insert(1, './tools')
-import holistic, common
+import holistic, common, encrypt
 
 PRINT_FREQ = 30
 
@@ -85,9 +85,12 @@ def video_loop(p_q, use_holistic=False):
 
         row = holistic.to_landmark_row(results, use_holistic)
 
+        landmark_str = ','.join(np.array(row).astype(np.str))
+        encrypted_str = encrypt.encrypt_chacha(landmark_str)
+
         # send comma delimited str of flattened landmarks in bytes to server
         send_feature_thread = threading.Thread(
-            target=Connect2Server(','.join(np.array(row).astype(np.str)).encode())
+            target=Connect2Server(encrypted_str.encode())
         )
         send_feature_thread.start()
         send_feature_thread.join()
