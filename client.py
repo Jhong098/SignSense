@@ -36,7 +36,7 @@ class PredictionReceiver(common.UDPRequestHandler):
         # Receive and print the datagram received from client
         # print(f"received datagram from {addr}")
         try:
-            datagram = data.decode()
+            datagram = encrypt.decrypt_chacha(data)
             print(f"prediction received from server is: {datagram}")
             self.p_q.put(datagram)
         except:

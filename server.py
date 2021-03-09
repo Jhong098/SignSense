@@ -39,7 +39,7 @@ LABELS = common.get_labels('data/')
 PRINT_FREQ = 30
 PRED_FREQ = 5
 MAX_QUEUE_LEN = 25
-CONFIDENCE_THRESHOLD = 0.4
+CONFIDENCE_THRESHOLD = 0.6
 
 class Message():
     def __init__(self, data, address):
@@ -61,10 +61,8 @@ class LandmarkReceiver(common.UDPRequestHandler):
     def datagram_received(self, data, addr):
         # Receive and print the datagram received from client
         # print(f"received datagram from {addr}")
-
         try:
-            datagram = data.decode()
-            decrypted_data = encrypt.decrypt_chacha(datagram).decode()
+            decrypted_data = encrypt.decrypt_chacha(data)
             # print(decrypted_data.decode())
             landmark_arr = np.array([float(i.strip()) for i in decrypted_data.split(",")])
             # print(datagram)
@@ -149,7 +147,10 @@ def prediction_watcher(f_q, p_q, ip):
                         if ip.value == "":
                             raise InvalidIPException("NO VALID IP WAS FOUND")
 
-                        UDPClientSocket.sendto(tag.encode(), (ip.value, PRED_PORT))
+                        UDPClientSocket.sendto(
+                            encrypt.encrypt_chacha(tag),
+                            (ip.value, PRED_PORT)
+                        )
                 else:
                     print("None ({} {}% Below threshold)".format(
                         LABELS[prediction], out[prediction]*100))
