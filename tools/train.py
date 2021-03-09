@@ -160,7 +160,7 @@ def plot_data(history, name1, name2):
     plt.plot(history[name2], label=name2)
     plt.legend()
 
-def train_model(dirname, epochs=100, batch_size=128, val_split=0.25):
+def train_model(dirname, epochs=25, batch_size=128, val_split=0.25):
     X, Y, X_test, Y_test = load_and_process_data(dirname)
     print("Size of training set = {}, test set = {}".format(X.shape[0], X_test.shape[0]))
     model = build_model(Y.shape[1], X.shape[2])
