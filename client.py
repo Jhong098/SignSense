@@ -90,7 +90,7 @@ def video_loop(p_q, use_holistic=False):
 
         # send comma delimited str of flattened landmarks in bytes to server
         send_feature_thread = threading.Thread(
-            target=Connect2Server(encrypted_str.encode())
+            target=Connect2Server(encrypted_str)
         )
         send_feature_thread.start()
         send_feature_thread.join()

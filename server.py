@@ -20,11 +20,9 @@ import tensorflow as tf
 import keras
 import train
 
-# import pickle
-
 # print debug messages
 DEBUG = True
- 
+
 # Create a tuple with IP Address and Port Number
 SERVER_ADDR = ("0.0.0.0", 9999)
 PRED_PORT = 9998
@@ -63,7 +61,7 @@ class LandmarkReceiver(common.UDPRequestHandler):
         # print(f"received datagram from {addr}")
         try:
             decrypted_data = encrypt.decrypt_chacha(data)
-            # print(decrypted_data.decode())
+            # print(decrypted_data)
             landmark_arr = np.array([float(i.strip()) for i in decrypted_data.split(",")])
             # print(datagram)
             # print(landmark_arr.shape)
@@ -73,15 +71,13 @@ class LandmarkReceiver(common.UDPRequestHandler):
             if self.ip.value == "":
                 common.print_debug_banner(f"SETTING IP TO: {addr[0]}")
                 self.ip.value = addr[0]
+        except encrypt.DecryptionError:
+            print(f"tried to decrypt {data}")
+        except Full:
+            print("landmark queue currently full")
         except Exception as e:
             # print(e)
             pass
-        # except Full:
-        #     # print("exception while receiving datagram")
-        #     pass
-        # except UnicodeDecodeError:
-        #     print("unicode decode error")
-        #     pass
 
 
 def predict_loop(model_path, f_q, p_q, ip):
