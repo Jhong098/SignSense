@@ -25,8 +25,8 @@ POINT_DIM = 3
 def build_model(labels, frame_dim, dropout=0.3):
     model = Sequential()
     model.add(keras.Input(shape = (TIMESTEPS, frame_dim)))
-    model.add(layers.LSTM(64, name="lstm1", dropout=dropout, return_sequences=True))
-    model.add(layers.LSTM(32, name="lstm2", dropout=dropout))
+    model.add(layers.LSTM(128, name="lstm1", dropout=dropout, return_sequences=True))
+    model.add(layers.LSTM(64, name="lstm2", dropout=dropout))
     model.add(layers.Dense(labels, activation="softmax"))
     adam = Adam(lr = 0.0002)
     model.compile(loss='categorical_crossentropy',
