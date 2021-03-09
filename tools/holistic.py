@@ -180,14 +180,16 @@ def convert_video(infile, outfile, use_holistic):
 
 
 def to_landmark_row(results, use_holistic):
-    def to_list(landmark_list, list_size):
+    def to_iter(landmark_list, list_size):
         if landmark_list is None:
-            return [[0.0, 0.0, 0.0]] * list_size
-        return [[landmark.x, landmark.y, landmark.z] for landmark in landmark_list.landmark]
+            return itertools.repeat(0.0, list_size * 3)
+        return (c for landmark in landmark_list.landmark for c in [landmark.x, landmark.y, landmark.z])
 
     if use_holistic:
-        right = np.array(to_list(results.right_hand_landmarks, HAND_LANDMARK_COUNT))
-        left = np.array(to_list(results.left_hand_landmarks, HAND_LANDMARK_COUNT))
+        features = np.fromiter(itertools.chain(
+            to_iter(results.right_hand_landmarks, HAND_LANDMARK_COUNT),
+            to_iter(results.left_hand_landmarks, HAND_LANDMARK_COUNT)
+        ), np.float64)
     else:
         # NOTE THESE ARE CAMERA RELATIVE POSITIONS, RIGHT IS ACTUALLY THE SUBJECT's LEFT HAND, and vice versa
         hand_landmarks = {"Left": None, "Right": None}
@@ -212,11 +214,15 @@ def to_landmark_row(results, use_holistic):
                 hand_landmarks["Right"] = results.multi_hand_landmarks[1]
                 print("Too many hands in frame, interpreting")
 
-        # PoV left = right hand
-        right = np.array(to_list(hand_landmarks["Left"], HAND_LANDMARK_COUNT))
-        # PoV right = left hand
-        left = np.array(to_list(hand_landmarks["Right"], HAND_LANDMARK_COUNT))
+        features = np.fromiter(itertools.chain(
+            # PoV left = right hand
+            to_iter(hand_landmarks["Left"], HAND_LANDMARK_COUNT),
+            # PoV right = left hand
+            to_iter(hand_landmarks["Right"], HAND_LANDMARK_COUNT)
+        ), np.float64)
+    return normalize_features(features)
 
+def normalize_features(features):
     def normalize(hand_data):
         avg = np.mean(hand_data[:, 0:2], axis=0) # ignore the average for the z axis
         for i in range(3):
@@ -227,6 +233,9 @@ def to_landmark_row(results, use_holistic):
                 hand_data[:, i] = (hand_data[:, i] - low) / diff
         return hand_data, avg
 
+    features = np.reshape(features, (-1, 3))
+    right = features[:int(features.shape[0]/2)]
+    left = features[int(features.shape[0]/2):]
     rh, ra = normalize(right)
     lh, la = normalize(left)
     return np.concatenate((rh.flatten(), lh.flatten(), ra, la))
