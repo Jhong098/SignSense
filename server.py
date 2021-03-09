@@ -74,7 +74,7 @@ class LandmarkReceiver(common.UDPRequestHandler):
         except encrypt.DecryptionError:
             print(f"tried to decrypt {data}")
         except Full:
-            print("landmark queue currently full")
+            print(f"landmark queue currently full ({self.f_q.qsize()})")
         except Exception as e:
             # print(e)
             pass
@@ -186,10 +186,10 @@ def live_predict(model_path, use_holistic):
     predict.start()
     
     # launch UDP server to receive landmark features
-    asyncio.run(common.start_server(
+    common.start_server(
         LandmarkReceiver(f_q=f_q, p_q=p_q, ip=client_ip),
         SERVER_ADDR
-    ))
+    )
 
 if __name__ == "__main__":
     if len(argv) < 2:

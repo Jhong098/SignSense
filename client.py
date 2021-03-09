@@ -120,7 +120,7 @@ if __name__ == "__main__":
     p.start()
 
     # run UDP server to receive predictions
-    asyncio.run(common.start_server(
+    common.start_server(
         PredictionReceiver(p_q=p_q),
         receiveAddressPort
-    ))
+    )

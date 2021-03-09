@@ -8,19 +8,17 @@ class UDPRequestHandler(asyncio.DatagramProtocol):
     def connection_made(self, transport):
         self.transport = transport
 
-async def start_server(handler, addr):
+def start_server(handler, addr):
     print_debug_banner("STARTING SERVER")
 
-    loop = asyncio.get_running_loop()
-    transport = await loop.create_datagram_endpoint(
+    loop = asyncio.get_event_loop()
+    transport = loop.create_datagram_endpoint(
         lambda: handler,
         local_addr = addr
     )
 
-    try:
-        await asyncio.sleep(3600)
-    finally:
-        transport.close()
+    loop.run_until_complete(transport)
+    loop.run_forever()
 
 # handle SIGKILL
 def exit_handler(p):
