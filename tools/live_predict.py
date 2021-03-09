@@ -15,7 +15,7 @@ from pathlib import Path
 import holistic
 import common
 
-USE_HOLISTIC = True
+USE_HOLISTIC = False
 
 
 PRINT_FREQ = 30
@@ -58,7 +58,7 @@ def video_loop(feature_q, prediction_q, use_holistic):
             out = prediction_q.get_nowait()
             prediction = np.argmax(out)
             if delay >= PRINT_FREQ:
-                if out[prediction] > .8:
+                if out[prediction] > .6:
                     print("{} {}%".format(
                         LABELS[prediction], out[prediction]*100))
                     tag = LABELS[prediction]
