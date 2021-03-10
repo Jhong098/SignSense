@@ -1,5 +1,4 @@
 import socket
-import socketserver
 import threading
 from sys import argv
 import cv2
