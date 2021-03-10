@@ -51,8 +51,9 @@ def video_loop(feature_q, prediction_q, use_holistic):
             # print(diff)
         timestamp = newtime
 
-        row = holistic.to_landmark_row(results, use_holistic)
-        feature_q.put(np.array(row))
+        raw_flat_row = holistic.to_landmark_row(results, use_holistic)
+        normalized_row = holistic.normalize_features(raw_flat_row)
+        feature_q.put(np.array(normalized_row))
 
         try:
             out = prediction_q.get_nowait()
@@ -80,7 +81,7 @@ def video_loop(feature_q, prediction_q, use_holistic):
         delay += 1
 
         holistic.draw_landmarks(image, results, use_holistic, tag)
-        cv2.imshow("MediaPipe", image)
+        cv2.imshow("SignSense", image)
 
 
 def predict_loop(feature_q, prediction_q):

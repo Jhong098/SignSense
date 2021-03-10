@@ -1,31 +1,24 @@
 
-import socketserver
 import socket
-import threading
 from pathlib import Path
 from sys import path, argv
 
 path.insert(1, './tools')
 import common, encrypt
+from holistic import normalize_features
 
 from multiprocessing import Queue, Process, Manager, Value
 from ctypes import c_char_p
-from queue import Empty, Full
+from queue import Empty
 import atexit
 from math import ceil
 import numpy as np
-import asyncio
-
-import tensorflow as tf
-import keras
-import train
 
 # print debug messages
 DEBUG = True
 
 # Create a tuple with IP Address and Port Number
-SERVER_ADDR = ("0.0.0.0", 9999)
-PRED_PORT = 9998
+SERVER_ADDR = ("0.0.0.0", common.SERVER_RECV_PORT)
 
 # current working directory
 CURRENT_WORKING_DIRECTORY = Path().absolute()
@@ -61,11 +54,10 @@ class LandmarkReceiver(common.UDPRequestHandler):
         # print(f"received datagram from {addr}")
         try:
             decrypted_data = encrypt.decrypt_chacha(data)
-            # print(decrypted_data)
             landmark_arr = np.array([float(i.strip()) for i in decrypted_data.split(",")])
-            # print(datagram)
-            # print(landmark_arr.shape)
-            self.f_q.put_nowait(landmark_arr)
+            normalized_data = normalize_features(landmark_arr)
+            
+            self.f_q.put_nowait(normalized_data)
 
             # set the IP address if it is empty
             if self.ip.value == "":
@@ -73,14 +65,16 @@ class LandmarkReceiver(common.UDPRequestHandler):
                 self.ip.value = addr[0]
         except encrypt.DecryptionError:
             print(f"tried to decrypt {data}")
-        except Full:
-            print(f"landmark queue currently full ({self.f_q.qsize()})")
         except Exception as e:
             # print(e)
             pass
 
 
 def predict_loop(model_path, f_q, p_q, ip):
+    import tensorflow as tf
+    import keras
+    import train
+
     train.init_gpu()
     model = keras.models.load_model(model_path)
 
@@ -145,7 +139,7 @@ def prediction_watcher(f_q, p_q, ip):
 
                         UDPClientSocket.sendto(
                             encrypt.encrypt_chacha(tag),
-                            (ip.value, PRED_PORT)
+                            (ip.value, common.CLIENT_RECV_PORT)
                         )
                 else:
                     print("None ({} {}% Below threshold)".format(
@@ -200,7 +194,7 @@ if __name__ == "__main__":
         model_path = argv[1]    
     
     if DEBUG:
-        print(f"using model {model_path}")
+        common.print_debug_banner(f"using model {model_path}")
 
     live_predict(model_path, False)
 

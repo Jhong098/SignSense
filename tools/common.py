@@ -1,12 +1,16 @@
 import asyncio
 from pathlib import Path
 
+SERVER_RECV_PORT = 9999
+CLIENT_RECV_PORT = 9998
+
 class UDPRequestHandler(asyncio.DatagramProtocol):
     def __init__(self):
         super().__init__()
 
     def connection_made(self, transport):
         self.transport = transport
+
 
 def start_server(handler, addr):
     print_debug_banner("STARTING SERVER")
@@ -20,6 +24,7 @@ def start_server(handler, addr):
     loop.run_until_complete(transport)
     loop.run_forever()
 
+
 # handle SIGKILL
 def exit_handler(p):
     try:
@@ -27,13 +32,16 @@ def exit_handler(p):
     except:
         print("Couldn't kill")
 
+
 def get_labels(dirname):
     holds = [sign.name for sign in Path(dirname, 'holds_data').iterdir()]
     nonholds = [sign.name for sign in Path(dirname, 'nonholds_data').iterdir()]
     return [None] + sorted(holds + nonholds)
 
+
 def print_debug_banner(msg):
     print(f"\n================={msg}===============\n")
+
 
 def print_prediction_probs(out, labels):
     print("--> ", end='')

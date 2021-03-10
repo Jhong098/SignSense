@@ -214,13 +214,12 @@ def to_landmark_row(results, use_holistic):
                 hand_landmarks["Right"] = results.multi_hand_landmarks[1]
                 print("Too many hands in frame, interpreting")
 
-        features = np.fromiter(itertools.chain(
+    return np.fromiter(itertools.chain(
             # PoV left = right hand
             to_iter(hand_landmarks["Left"], HAND_LANDMARK_COUNT),
             # PoV right = left hand
             to_iter(hand_landmarks["Right"], HAND_LANDMARK_COUNT)
         ), np.float64)
-    return normalize_features(features)
 
 def normalize_features(features):
     def normalize(hand_data):

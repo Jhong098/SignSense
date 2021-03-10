@@ -13,8 +13,6 @@ from multiprocessing import Queue, Process
 from queue import Empty
 import atexit
 from math import ceil
-import asyncio
-import pickle
 
 sys.path.insert(1, './tools')
 import holistic, common, encrypt
