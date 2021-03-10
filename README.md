@@ -27,4 +27,4 @@ Make sure you download version 460 of the driver. You'll have to create a Nvidia
 On Windows, you may need to add the cuDNN folder to your PATH and [change a couple of dll names](https://stackoverflow.com/questions/65608713/tensorflow-gpu-could-not-load-dynamic-library-cusolver64-10-dll-dlerror-cuso).
 
 ## Contributing Data
-Instruction can be found [here](data_gen_inst.md)
+Instructions can be found [here](data_gen_inst.md)
