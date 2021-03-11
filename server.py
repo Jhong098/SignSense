@@ -14,8 +14,9 @@ import atexit
 from math import ceil
 import numpy as np
 
-# print debug messages
 DEBUG = True
+ENCRYPT = True
+GPU = False
 
 # Create a tuple with IP Address and Port Number
 SERVER_ADDR = ("0.0.0.0", common.SERVER_RECV_PORT)
@@ -37,7 +38,7 @@ class Message():
         self.data = data
         self.address = address
 
-class Error(Exception):
+class MissingModelException(Exception):
     pass
 
 class InvalidIPException(Exception):
@@ -53,8 +54,9 @@ class LandmarkReceiver(common.UDPRequestHandler):
         # Receive and print the datagram received from client
         # print(f"received datagram from {addr}")
         try:
-            decrypted_data = encrypt.decrypt_chacha(data)
-            landmark_arr = np.array([float(i.strip()) for i in decrypted_data.split(",")])
+            if ENCRYPT:
+                data = encrypt.decrypt_chacha(data)
+            landmark_arr = np.array([float(i.strip()) for i in data.split(",")])
             normalized_data = normalize_features(landmark_arr)
             
             self.f_q.put_nowait(normalized_data)
@@ -71,17 +73,45 @@ class LandmarkReceiver(common.UDPRequestHandler):
 
 
 def predict_loop(model_path, f_q, p_q, ip):
+    # force predict to run on CPU
+    if not GPU:
+        import os
+        os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
     import tensorflow as tf
     import keras
-    import train
+    from train import TIMESTEPS, init_gpu
+    import timeit
+    import logging
 
-    train.init_gpu()
+    LOG_FILE_NAME = "logs/predict_log"
+    logging.basicConfig(
+        level=logging.DEBUG,
+        filemode="a+",
+        filename=LOG_FILE_NAME,
+        format="%(message)s"
+    )
+    if GPU:
+        logging.info(f"\n-----USING GPU------")
+    else:
+        logging.info(f"\n-----USING CPU------")
+    
+    def slide(w, new):
+        # Discard oldest frame and append new frame to data window
+        w[:-1] = w[1:]
+        w[-1] = new
+        return w
+
+    if GPU:
+        init_gpu()
     model = keras.models.load_model(model_path)
 
     delay = 0
+    time_count = 0
     window = None
     results = None
     results_len = ceil(PRINT_FREQ / PRED_FREQ)
+    times = []
+    TIME_FREQ = 60
 
     p_q.put("start")
 
@@ -92,23 +122,32 @@ def predict_loop(model_path, f_q, p_q, ip):
         row = f_q.get()
         
         if window is None:
-            window = np.zeros((train.TIMESTEPS, len(row)))
+            window = np.zeros((TIMESTEPS, len(row)))
 
-        # Discard oldest frame and append new frame to data window
-        window[:-1] = window[1:]
-        window[-1] = row
-
+        window = slide(window, row)
+        
         if delay >= PRED_FREQ:
+            start = timeit.default_timer()
             out = model(np.array([window]))
+            stop = timeit.default_timer()
+
             if results is None:
                 results = np.zeros((results_len, len(LABELS)))
-            results[:-1] = results[1:]
-            results[-1] = out
+            else:
+                times.append(stop-start)
+            
+            if time_count >= TIME_FREQ:
+                logging.info(f"\nPREDICTION TAKES: {sum(times)/len(times)}s")
+                time_count = 0
+                times = []
+
+            results = slide(results, out)
 
             p_q.put(np.mean(results, axis=0))
             delay = 0
     
         delay += 1
+        time_count += 1
 
 
 def prediction_watcher(f_q, p_q, ip):
@@ -136,9 +175,9 @@ def prediction_watcher(f_q, p_q, ip):
                     if tag is not None:
                         if ip.value == "":
                             raise InvalidIPException("NO VALID IP WAS FOUND")
-
+                        
                         UDPClientSocket.sendto(
-                            encrypt.encrypt_chacha(tag),
+                            encrypt.encrypt_chacha(tag) if ENCRYPT else tag.encode(),
                             (ip.value, common.CLIENT_RECV_PORT)
                         )
                 else:
@@ -189,7 +228,7 @@ if __name__ == "__main__":
     if len(argv) < 2:
         model_path = CURRENT_WORKING_DIRECTORY/'models'/DEFAULT_MODEL
         if not model_path.exists():
-            raise Error("NO MODEL CAN BE USED!")
+            raise MissingModelException("NO MODEL CAN BE USED!")
     else:
         model_path = argv[1]    
     
