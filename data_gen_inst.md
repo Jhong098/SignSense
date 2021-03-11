@@ -68,5 +68,5 @@ will generate an output structure like this:
 this is the data, it can then be sorted into the hold and non hold directory
 
 ## Committing Your Changes
-Please make the changes in a new branch with the following naming convention: `data-<signs separated by '-'>`.
+Please make the changes in a new branch with the following naming convention: `data/<signs separated by '-'>`.
 Only commit the generated numpy data, **DO NOT** include the videos!
