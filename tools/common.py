@@ -1,5 +1,7 @@
 import asyncio
 from pathlib import Path
+import random
+import time
 
 SERVER_RECV_PORT = 9999
 CLIENT_RECV_PORT = 9998
@@ -48,3 +50,16 @@ def print_prediction_probs(out, labels):
     for i, label in enumerate(out):
         print("{}:{:.2f}% | ".format(labels[i], label*100), end='')
     print("\n")
+
+
+
+# class MyTimer():
+#     def __init__(self):
+#         self.start = time.time()
+#     def __enter__(self):
+#         return self
+#     def __exit__(self, exc_type, exc_val, exc_tb):
+#         end = time.time()
+#         runtime = end - self.start
+#         msg = 'The function took {time} seconds to complete'
+#         print(msg.format(time=runtime))
