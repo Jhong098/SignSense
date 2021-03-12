@@ -17,10 +17,11 @@ sys.path.insert(1, './tools')
 import holistic, common, encrypt
 
 PRINT_FREQ = 30
+SERVER_ADDR = "35.243.169.18"
 
 # Server IP address and Port number
-serverAddressPort = ("127.0.0.1", 9999)
-receiveAddressPort = ("127.0.0.1", 9998)
+serverAddressPort = (SERVER_ADDR, 9999)
+receiveAddressPort = ("0.0.0.0", 9998)
 
 APP_NAME = "SignSense"
 

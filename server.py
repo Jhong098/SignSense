@@ -15,8 +15,9 @@ from math import ceil
 import numpy as np
 
 DEBUG = True
+LOG = False
 ENCRYPT = True
-GPU = False
+GPU = True
 
 # Create a tuple with IP Address and Port Number
 SERVER_ADDR = ("0.0.0.0", common.SERVER_RECV_PORT)
@@ -80,20 +81,26 @@ def predict_loop(model_path, f_q, p_q, ip):
     import tensorflow as tf
     import keras
     from train import TIMESTEPS, init_gpu
-    import timeit
-    import logging
 
-    LOG_FILE_NAME = "logs/predict_log"
-    logging.basicConfig(
-        level=logging.DEBUG,
-        filemode="a+",
-        filename=LOG_FILE_NAME,
-        format="%(message)s"
-    )
-    if GPU:
-        logging.info(f"\n-----USING GPU------")
-    else:
-        logging.info(f"\n-----USING CPU------")
+    if LOG:
+        import timeit
+        import logging
+
+        LOG_FILE_NAME = "logs/predict_log"
+        logging.basicConfig(
+            level=logging.DEBUG,
+            filemode="a+",
+            filename=LOG_FILE_NAME,
+            format="%(message)s"
+        )
+        if GPU:
+            logging.info(f"\n-----USING GPU------")
+        else:
+            logging.info(f"\n-----USING CPU------")
+        
+        times = []
+        time_count = 0
+        TIME_FREQ = 60
     
     def slide(w, new):
         # Discard oldest frame and append new frame to data window
@@ -106,12 +113,9 @@ def predict_loop(model_path, f_q, p_q, ip):
     model = keras.models.load_model(model_path)
 
     delay = 0
-    time_count = 0
     window = None
     results = None
     results_len = ceil(PRINT_FREQ / PRED_FREQ)
-    times = []
-    TIME_FREQ = 60
 
     p_q.put("start")
 
@@ -127,16 +131,19 @@ def predict_loop(model_path, f_q, p_q, ip):
         window = slide(window, row)
         
         if delay >= PRED_FREQ:
-            start = timeit.default_timer()
+            if LOG:
+                start = timeit.default_timer()
             out = model(np.array([window]))
-            stop = timeit.default_timer()
+
+            if LOG:
+                stop = timeit.default_timer()
 
             if results is None:
                 results = np.zeros((results_len, len(LABELS)))
-            else:
+            elif LOG:
                 times.append(stop-start)
             
-            if time_count >= TIME_FREQ:
+            if LOG and time_count >= TIME_FREQ:
                 logging.info(f"\nPREDICTION TAKES: {sum(times)/len(times)}s")
                 time_count = 0
                 times = []
@@ -147,7 +154,8 @@ def predict_loop(model_path, f_q, p_q, ip):
             delay = 0
     
         delay += 1
-        time_count += 1
+        if LOG:
+            time_count += 1
 
 
 def prediction_watcher(f_q, p_q, ip):
