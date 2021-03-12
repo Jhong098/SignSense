@@ -215,15 +215,17 @@ def to_landmark_row(results, use_holistic):
                 print("Too many hands in frame, interpreting")
 
     return np.fromiter(itertools.chain(
-            # PoV left = right hand
-            to_iter(hand_landmarks["Left"], HAND_LANDMARK_COUNT),
-            # PoV right = left hand
-            to_iter(hand_landmarks["Right"], HAND_LANDMARK_COUNT)
-        ), np.float64)
+        # PoV left = right hand
+        to_iter(hand_landmarks["Left"], HAND_LANDMARK_COUNT),
+        # PoV right = left hand
+        to_iter(hand_landmarks["Right"], HAND_LANDMARK_COUNT)
+    ), np.float64)
+
 
 def normalize_features(features):
     def normalize(hand_data):
-        avg = np.mean(hand_data[:, 0:2], axis=0) # ignore the average for the z axis
+        # ignore the average for the z axis
+        avg = np.mean(hand_data[:, 0:2], axis=0)
         for i in range(3):
             high = hand_data[:, i].max()
             low = hand_data[:, i].min()
@@ -246,7 +248,7 @@ def convert_array(infile):
     # process as holistic
 
     data = np.array([
-        to_landmark_row(results, False) for _, results in process_video(infile,  False)
+        normalize_features(to_landmark_row(results, False)) for _, results in process_video(infile,  False)
     ])
     return data
 
