@@ -19,7 +19,7 @@ USE_HOLISTIC = False
 
 
 PRINT_FREQ = 30
-PRED_FREQ = 5
+PRED_FREQ = 3
 assert PRINT_FREQ % PRED_FREQ == 0
 
 LABELS = common.get_labels('data/')
