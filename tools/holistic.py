@@ -146,6 +146,8 @@ def draw_landmarks(image, landmarks, use_holistic, tag=''):
                 mp_drawing.draw_landmarks(
                     image, hand_landmarks, mp.python.solutions.holistic.HAND_CONNECTIONS)
     cv2.putText(image, tag, (10, 50),
+                cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 0), 6)
+    cv2.putText(image, tag, (10, 50),
                 cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
 
 

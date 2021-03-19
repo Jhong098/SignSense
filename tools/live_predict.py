@@ -4,8 +4,7 @@ import mediapipe as mp
 import itertools
 import numpy as np
 import time
-import signal
-import sys
+from collections import deque
 from multiprocessing import Queue, Process
 from queue import Empty
 import atexit
@@ -41,7 +40,8 @@ def video_loop(feature_q, prediction_q, use_holistic):
     prediction_q.get()
     timestamp = None
     delay = 0
-    tag = ''
+    tag = deque([" "]*5, 5)
+    pdecay = time.time()
     print("starting image cap")
     for image, results in holistic.process_capture(cap, use_holistic):
         newtime = time.time()
@@ -62,7 +62,10 @@ def video_loop(feature_q, prediction_q, use_holistic):
                 if out[prediction] > .6:
                     print("{} {}%".format(
                         LABELS[prediction], out[prediction]*100))
-                    tag = LABELS[prediction]
+                    if LABELS[prediction] not in [tag[-1], None, "None"]:
+                        tag.append(LABELS[prediction])
+                        pdecay = time.time()
+
                 else:
                     print("None ({} {}% Below threshold)".format(
                         LABELS[prediction], out[prediction]*100))
@@ -79,8 +82,9 @@ def video_loop(feature_q, prediction_q, use_holistic):
             pass
 
         delay += 1
-
-        holistic.draw_landmarks(image, results, use_holistic, tag)
+        if time.time() - pdecay > 7:
+            tag = deque([" "]*5, 5)
+        holistic.draw_landmarks(image, results, use_holistic, ' '.join(tag))
         cv2.imshow("SignSense", image)
 
 
