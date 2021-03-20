@@ -18,8 +18,8 @@ sys.path.insert(1, './tools')
 import holistic, common, encrypt
 
 PRINT_FREQ = 30
-SERVER_ADDR = "35.243.169.18"
-# SERVER_ADDR = "127.0.0.1"
+# SERVER_ADDR = "35.243.169.18"
+SERVER_ADDR = "127.0.0.1"
 
 # Server IP address and Port number
 serverAddressPort = (SERVER_ADDR, 9999)
@@ -34,8 +34,10 @@ def server(landmark_queue, prediction_queue):
     while True:
         try:
             landmark = landmark_queue.get()
+            encrypted_landmark = encrypt.encrypt_chacha(landmark)
+
             # Send message to server using created UDP socket
-            UDPClientSocket.sendto(landmark, serverAddressPort)
+            UDPClientSocket.sendto(encrypted_landmark, serverAddressPort)
 
             # Receive message from the server
             msgFromServer = UDPClientSocket.recvfrom(1024)[0]
@@ -90,11 +92,10 @@ def video_loop(landmark_queue, prediction_queue, use_holistic=False):
         row = holistic.to_landmark_row(results, use_holistic)
 
         landmark_str = ','.join(np.array(row).astype(np.str))
-        encrypted_str = encrypt.encrypt_chacha(landmark_str)
 
         # send comma delimited str of flattened landmarks in bytes to server
         try:
-            landmark_queue.put_nowait(encrypted_str)
+            landmark_queue.put_nowait(landmark_str)
         except Exception as e:
             print(e)
 
@@ -115,6 +116,9 @@ def video_loop(landmark_queue, prediction_queue, use_holistic=False):
         cv2.imshow(APP_NAME, image)
     cap.release()
     cv2.destroyAllWindows()
+
+    # send termination message to server
+    landmark_queue.put("END")
 
 if __name__ == "__main__":
     # queue containing the returned predictions from the server

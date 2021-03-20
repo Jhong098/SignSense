@@ -116,6 +116,10 @@ class LandmarkReceiver(common.UDPRequestHandler):
         try:
             if ENCRYPT:
                 data = encrypt.decrypt_chacha(data)
+
+            if len(data) < 4 and data == "END":
+                self.cleanup_client(addr)
+
             landmark_arr = np.array([float(i.strip()) for i in data.split(",")])
             normalized_data = normalize_features(landmark_arr)
             
