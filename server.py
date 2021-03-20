@@ -78,7 +78,7 @@ class LandmarkReceiver(common.UDPRequestHandler):
     def check_last_msg(self, addr, new):
         time_elapsed = new - self.client_to_last_msg[addr]
         if time_elapsed > self.CLIENT_TIMEOUT:
-            cleanup_client(addr)
+            self.cleanup_client(addr)
         else:
             self.client_to_last_msg[addr] = new
 

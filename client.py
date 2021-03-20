@@ -63,6 +63,7 @@ def video_loop(landmark_queue, prediction_queue, use_holistic=False):
     mp_drawing = mp.solutions.drawing_utils
 
     timestamp = None
+    started = False
     predicted = None
     delay = 0
     tag = ''
@@ -70,6 +71,13 @@ def video_loop(landmark_queue, prediction_queue, use_holistic=False):
     print("starting image cap")
 
     for image, results in holistic.process_capture(cap, use_holistic):
+        window_state = cv2.getWindowProperty(APP_NAME, 0)
+        if started and window_state == -1:
+            print("QUITTING")
+            break
+
+        started = True
+
         newtime = time.time()
         if timestamp is not None:
             diff = newtime - timestamp
@@ -101,6 +109,8 @@ def video_loop(landmark_queue, prediction_queue, use_holistic=False):
 
         holistic.draw_landmarks(image, results, use_holistic, predicted)
         cv2.imshow(APP_NAME, image)
+    cap.release()
+    cv2.destroyAllWindows()
 
 if __name__ == "__main__":
     # queue containing the returned predictions from the server
