@@ -8,11 +8,13 @@ import common, encrypt
 from holistic import normalize_features
 
 from multiprocessing import Queue, Process, Manager, Value
+from queue import Queue as SimpleQueue
 from ctypes import c_char_p
 from queue import Empty
 import atexit
 from math import ceil
 import numpy as np
+import time
 
 DEBUG = True
 LOG = False
@@ -59,8 +61,56 @@ class LandmarkReceiver(common.UDPRequestHandler):
     def __init__(self, **kwargs):
         super().__init__()
         self.__dict__.update(kwargs)
+        self.CLIENT_TIMEOUT = 10 # time allowed between messages
+        self.client_to_process = {}
+        self.manager = Manager()
+        self.client_to_last_msg = {}
+        self.client_to_f_q = {}
+        self.client_to_p_q = {}
+
+    def cleanup_client(self, addr):
+        common.print_debug_banner(f"CLEANING UP CLIENT: {addr}")
+        del self.client_to_f_q[addr]
+        del self.client_to_p_q[addr]
+        process_to_del = self.client_to_process[addr]
+        process_to_del.terminate()
+
+    def check_last_msg(self, addr, new):
+        time_elapsed = new - self.client_to_last_msg[addr]
+        if time_elapsed > self.CLIENT_TIMEOUT:
+            cleanup_client(addr)
+        else:
+            self.client_to_last_msg[addr] = new
+
+    def start_process(self, addr):
+        f_q = Queue(MAX_QUEUE_LEN)
+        p_q = Queue(MAX_QUEUE_LEN)
+        self.client_to_f_q[addr] = f_q
+        self.client_to_p_q[addr] = p_q
+        self.client_to_last_msg[addr] = time.time()
+        predict = Process(
+            target=predict_loop,
+            args=(
+                model_path,
+                f_q,
+                p_q,
+            )
+        )
+        self.client_to_process[addr] = predict
+        atexit.register(common.exit_handler, predict)
+        predict.daemon = True
+        predict.start()
+        print(f"started new predict process for {addr}")
 
     def datagram_received(self, data, addr):
+        if addr is None:
+            return
+
+        if addr not in self.client_to_f_q:
+            self.start_process(addr)
+
+        self.check_last_msg(addr, time.time())
+
         # Receive and print the datagram received from client
         try:
             if ENCRYPT:
@@ -68,9 +118,9 @@ class LandmarkReceiver(common.UDPRequestHandler):
             landmark_arr = np.array([float(i.strip()) for i in data.split(",")])
             normalized_data = normalize_features(landmark_arr)
             
-            self.f_q.put_nowait(normalized_data)
+            self.client_to_f_q[addr].put_nowait(normalized_data)
 
-            pred = self.p_q.get_nowait()
+            pred = self.client_to_p_q[addr].get_nowait()
             tag = array_to_class(pred)
             self.transport.sendto(tag, addr)
 
@@ -137,23 +187,11 @@ def predict_loop(model_path, f_q, p_q):
         window = slide(window, row)
         
         if delay >= PRED_FREQ:
-            if LOG:
-                start = timeit.default_timer()
             out = model(np.array([window]))
-
-            if LOG:
-                stop = timeit.default_timer()
 
             if results is None:
                 results = np.zeros((results_len, len(LABELS)))
-            elif LOG:
-                times.append(stop-start)
             
-            if LOG and time_count >= TIME_FREQ:
-                logging.info(f"\nPREDICTION TAKES: {sum(times)/len(times)}s")
-                time_count = 0
-                times = []
-
             results = slide(results, out)
             pred = np.mean(results, axis=0)
             p_q.put(pred)
@@ -161,29 +199,11 @@ def predict_loop(model_path, f_q, p_q):
             delay = 0
     
         delay += 1
-        if LOG:
-            time_count += 1
 
 def live_predict(model_path, use_holistic):
-    # initialize shared IP string
-    # manager = Manager()
-    # client_ip = manager.Value(c_char_p, "")
-
-    # queue containing the landmark features from the client
-    f_q = Queue(MAX_QUEUE_LEN)
-
-    # queue containing the predictions
-    p_q = Queue(MAX_QUEUE_LEN)
-
-    # launch process for predictions
-    predict = Process(target=predict_loop, args=(model_path, f_q, p_q,))
-    atexit.register(common.exit_handler, predict)
-    predict.daemon = True
-    predict.start()
-    
     # launch UDP server to receive landmark features
     common.start_server(
-        LandmarkReceiver(f_q=f_q, p_q=p_q),
+        LandmarkReceiver(),
         SERVER_ADDR
     )
 
