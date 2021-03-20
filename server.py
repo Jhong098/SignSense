@@ -74,6 +74,7 @@ class LandmarkReceiver(common.UDPRequestHandler):
         del self.client_to_p_q[addr]
         process_to_del = self.client_to_process[addr]
         process_to_del.terminate()
+        del self.client_to_process[addr]
 
     def check_last_msg(self, addr, new):
         time_elapsed = new - self.client_to_last_msg[addr]

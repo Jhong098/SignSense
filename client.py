@@ -17,8 +17,8 @@ sys.path.insert(1, './tools')
 import holistic, common, encrypt
 
 PRINT_FREQ = 30
-# SERVER_ADDR = "35.243.169.18"
-SERVER_ADDR = "127.0.0.1"
+SERVER_ADDR = "35.243.169.18"
+# SERVER_ADDR = "127.0.0.1"
 
 # Server IP address and Port number
 serverAddressPort = (SERVER_ADDR, 9999)
