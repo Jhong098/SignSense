@@ -45,6 +45,23 @@ class MissingModelException(Exception):
 class InvalidIPException(Exception):
     pass
 
+def array_to_class(out):
+    prediction = np.argmax(out)
+
+    # send confident prediction
+    if out[prediction] > CONFIDENCE_THRESHOLD:
+        print("{} {}%".format(
+            LABELS[prediction], out[prediction]*100))
+        tag = LABELS[prediction]
+
+        # send back prediction if it is a valid class
+        if tag is not None:
+            print(f"prediction is  {tag}")
+            return encrypt.encrypt_chacha(tag) if ENCRYPT else tag.encode()
+    else:
+        print("None ({} {}% Below threshold)".format(
+            LABELS[prediction], out[prediction]*100))
+
 # TODO: store landmarks based on the client to handle multiple clients
 class LandmarkReceiver(common.UDPRequestHandler):
     def __init__(self, **kwargs):
@@ -53,7 +70,6 @@ class LandmarkReceiver(common.UDPRequestHandler):
 
     def datagram_received(self, data, addr):
         # Receive and print the datagram received from client
-        # print(f"received datagram from {addr}")
         try:
             if ENCRYPT:
                 data = encrypt.decrypt_chacha(data)
@@ -62,10 +78,10 @@ class LandmarkReceiver(common.UDPRequestHandler):
             
             self.f_q.put_nowait(normalized_data)
 
-            # set the IP address if it is empty
-            if self.ip.value == "":
-                common.print_debug_banner(f"SETTING IP TO: {addr[0]}")
-                self.ip.value = addr[0]
+            pred = self.p_q.get_nowait()
+            tag = array_to_class(pred)
+            self.transport.sendto(tag, addr)
+
         except encrypt.DecryptionError:
             print(f"tried to decrypt {data}")
         except Exception as e:
@@ -73,7 +89,7 @@ class LandmarkReceiver(common.UDPRequestHandler):
             pass
 
 
-def predict_loop(model_path, f_q, p_q, ip):
+def predict_loop(model_path, f_q, p_q):
     # force predict to run on CPU
     if not GPU:
         import os
@@ -117,8 +133,6 @@ def predict_loop(model_path, f_q, p_q, ip):
     results = None
     results_len = ceil(PRINT_FREQ / PRED_FREQ)
 
-    p_q.put("start")
-
     if DEBUG:
         common.print_debug_banner("STARTED PREDICTION")
 
@@ -149,64 +163,19 @@ def predict_loop(model_path, f_q, p_q, ip):
                 times = []
 
             results = slide(results, out)
+            pred = np.mean(results, axis=0)
+            p_q.put(pred)
 
-            p_q.put(np.mean(results, axis=0))
             delay = 0
     
         delay += 1
         if LOG:
             time_count += 1
 
-
-def prediction_watcher(f_q, p_q, ip):
-    UDPClientSocket = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)
-    delay = 0
-
-    p_q.get()
-
-    if DEBUG:
-        common.print_debug_banner("STARTED PREDICTION WATCHER")
-
-    while True:
-        try:
-            if delay >= PRINT_FREQ:
-                out = p_q.get_nowait()
-                prediction = np.argmax(out)
-
-                # send confident prediction
-                if out[prediction] > CONFIDENCE_THRESHOLD:
-                    print("{} {}%".format(
-                        LABELS[prediction], out[prediction]*100))
-                    tag = LABELS[prediction]
-
-                    # send back prediction if it is a valid class
-                    if tag is not None:
-                        if ip.value == "":
-                            raise InvalidIPException("NO VALID IP WAS FOUND")
-                        
-                        UDPClientSocket.sendto(
-                            encrypt.encrypt_chacha(tag) if ENCRYPT else tag.encode(),
-                            (ip.value, common.CLIENT_RECV_PORT)
-                        )
-                else:
-                    print("None ({} {}% Below threshold)".format(
-                        LABELS[prediction], out[prediction]*100))
-
-                delay = 0
-
-                if DEBUG and f_q.qsize() > 5:
-                    print(
-                        f"Warning: Model feature queue overloaded - size = {f_q.qsize()}")
-                common.print_prediction_probs(out, LABELS)
-        except Empty:
-            pass
-
-        delay += 1
-
 def live_predict(model_path, use_holistic):
     # initialize shared IP string
-    manager = Manager()
-    client_ip = manager.Value(c_char_p, "")
+    # manager = Manager()
+    # client_ip = manager.Value(c_char_p, "")
 
     # queue containing the landmark features from the client
     f_q = Queue(MAX_QUEUE_LEN)
@@ -214,21 +183,15 @@ def live_predict(model_path, use_holistic):
     # queue containing the predictions
     p_q = Queue(MAX_QUEUE_LEN)
 
-    # launch watcher process for checking and sending predictions back
-    predict_watcher = Process(target=prediction_watcher, args=(f_q, p_q, client_ip,))
-    atexit.register(common.exit_handler, predict_watcher)
-    predict_watcher.daemon = True
-    predict_watcher.start()
-
     # launch process for predictions
-    predict = Process(target=predict_loop, args=(model_path, f_q, p_q, client_ip,))
+    predict = Process(target=predict_loop, args=(model_path, f_q, p_q,))
     atexit.register(common.exit_handler, predict)
     predict.daemon = True
     predict.start()
     
     # launch UDP server to receive landmark features
     common.start_server(
-        LandmarkReceiver(f_q=f_q, p_q=p_q, ip=client_ip),
+        LandmarkReceiver(f_q=f_q, p_q=p_q),
         SERVER_ADDR
     )
 
