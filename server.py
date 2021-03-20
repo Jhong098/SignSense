@@ -7,8 +7,7 @@ path.insert(1, './tools')
 import common, encrypt
 from holistic import normalize_features
 
-from multiprocessing import Queue, Process, Manager, Value
-from queue import Queue as SimpleQueue
+from multiprocessing import Queue, Process, Manager
 from ctypes import c_char_p
 from queue import Empty
 import atexit

@@ -1,12 +1,10 @@
 import socket
-import threading
 from sys import argv
 import cv2
 import mediapipe as mp
 import itertools
 import numpy as np
 import time
-import signal
 import sys
 from multiprocessing import Queue, Process
 from queue import Empty
