@@ -12,6 +12,7 @@ from multiprocessing import Queue, Process
 from queue import Empty
 import atexit
 from math import ceil
+from collections import deque
 
 sys.path.insert(1, './tools')
 import holistic, common, encrypt
@@ -66,7 +67,8 @@ def video_loop(landmark_queue, prediction_queue, use_holistic=False):
     started = False
     predicted = None
     delay = 0
-    tag = ''
+    pred_history = deque([" "]*5, 5)
+    pdecay = time.time()
 
     print("starting image cap")
 
@@ -99,15 +101,17 @@ def video_loop(landmark_queue, prediction_queue, use_holistic=False):
         try:
             out = prediction_queue.get_nowait()
             if delay >= PRINT_FREQ:
-                if out:
-                    predicted = out
+                if out and out != pred_history[-1]:
+                    pred_history.append(out)
+                    pdecay = time.time()
                 delay = 0
         except Empty:
             pass
 
         delay += 1
-
-        holistic.draw_landmarks(image, results, use_holistic, predicted)
+        if time.time() - pdecay > 7:
+            pred_history = deque([" "]*5, 5)
+        holistic.draw_landmarks(image, results, use_holistic, ' '.join(pred_history))
         cv2.imshow(APP_NAME, image)
     cap.release()
     cv2.destroyAllWindows()

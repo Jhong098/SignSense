@@ -61,7 +61,7 @@ class LandmarkReceiver(common.UDPRequestHandler):
     def __init__(self, **kwargs):
         super().__init__()
         self.__dict__.update(kwargs)
-        self.CLIENT_TIMEOUT = 10 # time allowed between messages
+        self.CLIENT_TIMEOUT = 30 # time allowed between messages
         self.client_to_process = {}
         self.manager = Manager()
         self.client_to_last_msg = {}
