@@ -7,12 +7,13 @@ path.insert(1, './tools')
 import common, encrypt
 from holistic import normalize_features
 
-from multiprocessing import Queue, Process, Manager, Value
+from multiprocessing import Queue, Process, Manager
 from ctypes import c_char_p
 from queue import Empty
 import atexit
 from math import ceil
 import numpy as np
+import time
 
 DEBUG = True
 LOG = False
@@ -34,38 +35,99 @@ PRED_FREQ = 5
 MAX_QUEUE_LEN = 25
 CONFIDENCE_THRESHOLD = 0.6
 
-class Message():
-    def __init__(self, data, address):
-        self.data = data
-        self.address = address
-
 class MissingModelException(Exception):
     pass
 
-class InvalidIPException(Exception):
-    pass
+def array_to_class(out):
+    prediction = np.argmax(out)
+
+    # send confident prediction
+    if out[prediction] > CONFIDENCE_THRESHOLD:
+        print("{} {}%".format(
+            LABELS[prediction], out[prediction]*100))
+        tag = LABELS[prediction]
+
+        # send back prediction if it is a valid class
+        if tag is not None:
+            print(f"prediction is  {tag}")
+            return encrypt.encrypt_chacha(tag) if ENCRYPT else tag.encode()
+    else:
+        print("None ({} {}% Below threshold)".format(
+            LABELS[prediction], out[prediction]*100))
 
 # TODO: store landmarks based on the client to handle multiple clients
 class LandmarkReceiver(common.UDPRequestHandler):
     def __init__(self, **kwargs):
         super().__init__()
         self.__dict__.update(kwargs)
+        self.CLIENT_TIMEOUT = 30 # time allowed between messages
+        self.client_to_process = {}
+        self.manager = Manager()
+        self.client_to_last_msg = {}
+        self.client_to_f_q = {}
+        self.client_to_p_q = {}
+
+    def cleanup_client(self, addr):
+        common.print_debug_banner(f"CLEANING UP CLIENT: {addr}")
+        del self.client_to_f_q[addr]
+        del self.client_to_p_q[addr]
+        process_to_del = self.client_to_process[addr]
+        process_to_del.terminate()
+        del self.client_to_process[addr]
+
+    def check_last_msg(self, addr, new):
+        time_elapsed = new - self.client_to_last_msg[addr]
+        if time_elapsed > self.CLIENT_TIMEOUT:
+            self.cleanup_client(addr)
+        else:
+            self.client_to_last_msg[addr] = new
+
+    def start_process(self, addr):
+        f_q = Queue(MAX_QUEUE_LEN)
+        p_q = Queue(MAX_QUEUE_LEN)
+        self.client_to_f_q[addr] = f_q
+        self.client_to_p_q[addr] = p_q
+        self.client_to_last_msg[addr] = time.time()
+        predict = Process(
+            target=predict_loop,
+            args=(
+                model_path,
+                f_q,
+                p_q,
+            )
+        )
+        self.client_to_process[addr] = predict
+        atexit.register(common.exit_handler, predict)
+        predict.daemon = True
+        predict.start()
+        print(f"started new predict process for {addr}")
 
     def datagram_received(self, data, addr):
+        if addr is None:
+            return
+
+        if addr not in self.client_to_f_q:
+            self.start_process(addr)
+
+        self.check_last_msg(addr, time.time())
+
         # Receive and print the datagram received from client
-        # print(f"received datagram from {addr}")
         try:
             if ENCRYPT:
                 data = encrypt.decrypt_chacha(data)
+
+            if len(data) < 4 and data == "END":
+                self.cleanup_client(addr)
+
             landmark_arr = np.array([float(i.strip()) for i in data.split(",")])
             normalized_data = normalize_features(landmark_arr)
             
-            self.f_q.put_nowait(normalized_data)
+            self.client_to_f_q[addr].put_nowait(normalized_data)
 
-            # set the IP address if it is empty
-            if self.ip.value == "":
-                common.print_debug_banner(f"SETTING IP TO: {addr[0]}")
-                self.ip.value = addr[0]
+            pred = self.client_to_p_q[addr].get_nowait()
+            tag = array_to_class(pred)
+            self.transport.sendto(tag, addr)
+
         except encrypt.DecryptionError:
             print(f"tried to decrypt {data}")
         except Exception as e:
@@ -73,7 +135,7 @@ class LandmarkReceiver(common.UDPRequestHandler):
             pass
 
 
-def predict_loop(model_path, f_q, p_q, ip):
+def predict_loop(model_path, f_q, p_q):
     # force predict to run on CPU
     if not GPU:
         import os
@@ -117,8 +179,6 @@ def predict_loop(model_path, f_q, p_q, ip):
     results = None
     results_len = ceil(PRINT_FREQ / PRED_FREQ)
 
-    p_q.put("start")
-
     if DEBUG:
         common.print_debug_banner("STARTED PREDICTION")
 
@@ -131,104 +191,23 @@ def predict_loop(model_path, f_q, p_q, ip):
         window = slide(window, row)
         
         if delay >= PRED_FREQ:
-            if LOG:
-                start = timeit.default_timer()
             out = model(np.array([window]))
-
-            if LOG:
-                stop = timeit.default_timer()
 
             if results is None:
                 results = np.zeros((results_len, len(LABELS)))
-            elif LOG:
-                times.append(stop-start)
             
-            if LOG and time_count >= TIME_FREQ:
-                logging.info(f"\nPREDICTION TAKES: {sum(times)/len(times)}s")
-                time_count = 0
-                times = []
-
             results = slide(results, out)
+            pred = np.mean(results, axis=0)
+            p_q.put(pred)
 
-            p_q.put(np.mean(results, axis=0))
             delay = 0
     
         delay += 1
-        if LOG:
-            time_count += 1
-
-
-def prediction_watcher(f_q, p_q, ip):
-    UDPClientSocket = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)
-    delay = 0
-
-    p_q.get()
-
-    if DEBUG:
-        common.print_debug_banner("STARTED PREDICTION WATCHER")
-
-    while True:
-        try:
-            if delay >= PRINT_FREQ:
-                out = p_q.get_nowait()
-                prediction = np.argmax(out)
-
-                # send confident prediction
-                if out[prediction] > CONFIDENCE_THRESHOLD:
-                    print("{} {}%".format(
-                        LABELS[prediction], out[prediction]*100))
-                    tag = LABELS[prediction]
-
-                    # send back prediction if it is a valid class
-                    if tag is not None:
-                        if ip.value == "":
-                            raise InvalidIPException("NO VALID IP WAS FOUND")
-                        
-                        UDPClientSocket.sendto(
-                            encrypt.encrypt_chacha(tag) if ENCRYPT else tag.encode(),
-                            (ip.value, common.CLIENT_RECV_PORT)
-                        )
-                else:
-                    print("None ({} {}% Below threshold)".format(
-                        LABELS[prediction], out[prediction]*100))
-
-                delay = 0
-
-                if DEBUG and f_q.qsize() > 5:
-                    print(
-                        f"Warning: Model feature queue overloaded - size = {f_q.qsize()}")
-                common.print_prediction_probs(out, LABELS)
-        except Empty:
-            pass
-
-        delay += 1
 
 def live_predict(model_path, use_holistic):
-    # initialize shared IP string
-    manager = Manager()
-    client_ip = manager.Value(c_char_p, "")
-
-    # queue containing the landmark features from the client
-    f_q = Queue(MAX_QUEUE_LEN)
-
-    # queue containing the predictions
-    p_q = Queue(MAX_QUEUE_LEN)
-
-    # launch watcher process for checking and sending predictions back
-    predict_watcher = Process(target=prediction_watcher, args=(f_q, p_q, client_ip,))
-    atexit.register(common.exit_handler, predict_watcher)
-    predict_watcher.daemon = True
-    predict_watcher.start()
-
-    # launch process for predictions
-    predict = Process(target=predict_loop, args=(model_path, f_q, p_q, client_ip,))
-    atexit.register(common.exit_handler, predict)
-    predict.daemon = True
-    predict.start()
-    
     # launch UDP server to receive landmark features
     common.start_server(
-        LandmarkReceiver(f_q=f_q, p_q=p_q, ip=client_ip),
+        LandmarkReceiver(),
         SERVER_ADDR
     )
 
