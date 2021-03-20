@@ -34,15 +34,7 @@ PRED_FREQ = 5
 MAX_QUEUE_LEN = 25
 CONFIDENCE_THRESHOLD = 0.6
 
-class Message():
-    def __init__(self, data, address):
-        self.data = data
-        self.address = address
-
 class MissingModelException(Exception):
-    pass
-
-class InvalidIPException(Exception):
     pass
 
 def array_to_class(out):
