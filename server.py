@@ -41,18 +41,18 @@ POLL_INTERVAL = 30
 class MissingModelException(Exception):
     pass
 
-def array_to_class(out):
+def array_to_class(out, addr, connected):
+    print(f"CONNECTED: {connected}")
     prediction = np.argmax(out)
 
     # send confident prediction
     if out[prediction] > CONFIDENCE_THRESHOLD:
-        print("{} {}%".format(
-            LABELS[prediction], out[prediction]*100))
+        print(f"{LABELS[prediction]} {out[prediction]*100} - {addr}")
         tag = LABELS[prediction]
 
-        # send back prediction if it is a valid class
-        if tag is not None:
-            print(f"prediction is  {tag}")
+        # send back prediction if it is a valid class or if the client hasn't connected
+        if tag is not None or not connected:
+            print(f"prediction is {tag}")
             return encrypt.encrypt_chacha(tag) if ENCRYPT else tag.encode()
     else:
         print("None ({} {}% Below threshold)".format(
@@ -71,6 +71,7 @@ class LandmarkReceiver(common.UDPRequestHandler):
         self.client_to_p_q = {}
         self.poll_connections()
         self.cleaning_process = None
+        self.client_to_connected = {}
 
     def periodic_task(interval, times = -1):
         def outer_wrap(function):
@@ -96,15 +97,13 @@ class LandmarkReceiver(common.UDPRequestHandler):
         del self.client_to_f_q[addr]
         del self.client_to_p_q[addr]
         del self.client_to_last_msg[addr]
-
-        common.print_debug_banner(f"FINISHED DELETING DICTS")
+        del self.client_to_connected[addr]
 
         process_to_del = self.client_to_process[addr]
         process_to_del.terminate()
 
         common.print_debug_banner("FINISHED TERMINATING")
         # process_to_del.close()
-
         # common.print_debug_banner("FINISHED CLOSING")
         del self.client_to_process[addr]
 
@@ -126,6 +125,7 @@ class LandmarkReceiver(common.UDPRequestHandler):
         p_q = Queue(MAX_QUEUE_LEN)
         self.client_to_f_q[addr] = f_q
         self.client_to_p_q[addr] = p_q
+        self.client_to_connected[addr] = False
         self.client_to_last_msg[addr] = time.time()
         predict = Process(
             target=predict_loop,
@@ -160,11 +160,15 @@ class LandmarkReceiver(common.UDPRequestHandler):
         try:
             if ENCRYPT:
                 data = encrypt.decrypt_chacha(data)
-
             # received termination signal from client
-            if len(data) < 4 and data == "END":
-                self.client_to_f_q[addr].put("END")
-                self.cleanup_client(addr)
+            if len(data) < 4:
+                if data == "END":
+                    common.print_debug_banner(f"RECEIVED 'END' FROM {addr}")
+                    self.client_to_f_q[addr].put("END")
+                    self.cleanup_client(addr)
+                elif data == "ACK":
+                    common.print_debug_banner(f"RECEIVED 'ACK' FROM {addr}")
+                    self.client_to_connected[addr] = True
                 return
 
             landmark_arr = np.array([float(i.strip()) for i in data.split(",")])
@@ -173,7 +177,7 @@ class LandmarkReceiver(common.UDPRequestHandler):
             self.client_to_f_q[addr].put_nowait(normalized_data)
 
             pred = self.client_to_p_q[addr].get_nowait()
-            tag = array_to_class(pred)
+            tag = array_to_class(pred, addr, self.client_to_connected[addr])
             self.transport.sendto(tag, addr)
 
         except encrypt.DecryptionError:
