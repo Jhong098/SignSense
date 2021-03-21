@@ -8,6 +8,7 @@ import common, encrypt
 from holistic import normalize_features
 
 from multiprocessing import Queue, Process, Manager
+import threading
 from ctypes import c_char_p
 from queue import Empty
 import atexit
@@ -22,6 +23,7 @@ GPU = True
 
 # Create a tuple with IP Address and Port Number
 SERVER_ADDR = ("0.0.0.0", common.SERVER_RECV_PORT)
+BLACKLIST_ADDRS = [('192.168.1.68', 9999)] # local router heartbeat thing
 
 # current working directory
 CURRENT_WORKING_DIRECTORY = Path().absolute()
@@ -34,6 +36,7 @@ PRINT_FREQ = 30
 PRED_FREQ = 5
 MAX_QUEUE_LEN = 25
 CONFIDENCE_THRESHOLD = 0.6
+POLL_INTERVAL = 30
 
 class MissingModelException(Exception):
     pass
@@ -63,24 +66,60 @@ class LandmarkReceiver(common.UDPRequestHandler):
         self.CLIENT_TIMEOUT = 30 # time allowed between messages
         self.client_to_process = {}
         self.manager = Manager()
-        self.client_to_last_msg = {}
+        self.client_to_last_msg = self.manager.dict()
         self.client_to_f_q = {}
         self.client_to_p_q = {}
+        self.poll_connections()
+        self.cleaning_process = None
+
+    def periodic_task(interval, times = -1):
+        def outer_wrap(function):
+            def wrap(*args, **kwargs):
+                stop = threading.Event()
+                def inner_wrap():
+                    i = 0
+                    while i != times and not stop.isSet():
+                        stop.wait(interval)
+                        function(*args, **kwargs)
+                        i += 1
+
+                t = threading.Timer(0, inner_wrap)
+                t.daemon = True
+                t.start()
+                return stop
+            return wrap
+        return outer_wrap
 
     def cleanup_client(self, addr):
         common.print_debug_banner(f"CLEANING UP CLIENT: {addr}")
+        self.cleaning_process = addr
         del self.client_to_f_q[addr]
         del self.client_to_p_q[addr]
+        del self.client_to_last_msg[addr]
+
+        common.print_debug_banner(f"FINISHED DELETING DICTS")
+
         process_to_del = self.client_to_process[addr]
         process_to_del.terminate()
+
+        common.print_debug_banner("FINISHED TERMINATING")
+        # process_to_del.close()
+
+        # common.print_debug_banner("FINISHED CLOSING")
         del self.client_to_process[addr]
 
-    def check_last_msg(self, addr, new):
-        time_elapsed = new - self.client_to_last_msg[addr]
-        if time_elapsed > self.CLIENT_TIMEOUT:
-            self.cleanup_client(addr)
-        else:
-            self.client_to_last_msg[addr] = new
+        common.print_debug_banner(f"FINISHED CLEANUP")
+        print(f"CURRENT PROCESS COUNT: {len(self.client_to_process.keys())}")
+        self.cleaning_process = None
+    
+    @periodic_task(POLL_INTERVAL)
+    def poll_connections(self):
+        common.print_debug_banner(f"POLLING CONNECTIONS")
+        print(f"CURRENT PROCESS COUNT: {len(self.client_to_process.keys())}")
+        for client, last_msg_ts in self.client_to_last_msg.items():
+            if time.time() - last_msg_ts > self.CLIENT_TIMEOUT:
+                common.print_debug_banner(f"FOUND OVERTIME CLIENT: {client}")
+                self.cleanup_client(client)
 
     def start_process(self, addr):
         f_q = Queue(MAX_QUEUE_LEN)
@@ -106,18 +145,27 @@ class LandmarkReceiver(common.UDPRequestHandler):
         if addr is None:
             return
 
-        if addr not in self.client_to_f_q:
-            self.start_process(addr)
+        if addr in BLACKLIST_ADDRS:
+            common.print_debug_banner(f"BLOCKED {addr}")
+            return
 
-        self.check_last_msg(addr, time.time())
+        # new client connected
+        if addr not in self.client_to_f_q and addr != self.cleaning_process:
+            self.start_process(addr)
+            return
+
+        self.client_to_last_msg[addr] = time.time()
 
         # Receive and print the datagram received from client
         try:
             if ENCRYPT:
                 data = encrypt.decrypt_chacha(data)
 
+            # received termination signal from client
             if len(data) < 4 and data == "END":
+                self.client_to_f_q[addr].put("END")
                 self.cleanup_client(addr)
+                return
 
             landmark_arr = np.array([float(i.strip()) for i in data.split(",")])
             normalized_data = normalize_features(landmark_arr)
@@ -184,6 +232,9 @@ def predict_loop(model_path, f_q, p_q):
 
     while True:
         row = f_q.get()
+
+        if len(row) == 3 and row == "END":
+            break
         
         if window is None:
             window = np.zeros((TIMESTEPS, len(row)))
@@ -203,6 +254,8 @@ def predict_loop(model_path, f_q, p_q):
             delay = 0
     
         delay += 1
+    
+    common.print_debug_banner("ENDING PREDICT PROCESS")
 
 def live_predict(model_path, use_holistic):
     # launch UDP server to receive landmark features
