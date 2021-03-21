@@ -16,8 +16,8 @@ sys.path.insert(1, './tools')
 import holistic, common, encrypt
 
 PRINT_FREQ = 30
-# SERVER_ADDR = "35.243.169.18"
-SERVER_ADDR = "127.0.0.1"
+SERVER_ADDR = "35.243.169.18"
+# SERVER_ADDR = "127.0.0.1"
 
 # Server IP address and Port number
 serverAddressPort = (SERVER_ADDR, 9999)
@@ -33,17 +33,16 @@ def server(landmark_queue, prediction_queue):
         try:
             landmark = landmark_queue.get()
             encrypted_landmark = encrypt.encrypt_chacha(landmark)
-
             # Send message to server using created UDP socket
             UDPClientSocket.sendto(encrypted_landmark, serverAddressPort)
-
             # Receive message from the server
-            msgFromServer = UDPClientSocket.recvfrom(1024)[0]
+            msgFromServer = UDPClientSocket.recvfrom(2048)[0]
             raw_data = encrypt.decrypt_chacha(msgFromServer)
             prediction_queue.put(raw_data)
         except encrypt.DecryptionError:
             print(f"tried to decrypt {msgFromServer}")
-        except socket.error:
+        except socket.error as e:
+            # print(f"SOCKET EXCEPTION: {e}")
             pass
         except Exception as e:
             print(f"SERVER EXCEPTION: {e}")
@@ -66,6 +65,7 @@ def video_loop(landmark_queue, prediction_queue, use_holistic=False):
     timestamp = None
     started = False
     predicted = None
+    initialized = False
     delay = 0
     pred_history = deque([" "]*5, 5)
     pdecay = time.time()
@@ -99,19 +99,36 @@ def video_loop(landmark_queue, prediction_queue, use_holistic=False):
 
         try:
             out = prediction_queue.get_nowait()
+
+            # toggle the server status flag on first message received
+            if out and not initialized:
+                initialized = True
+
+                common.print_debug_banner("SENDING ACK TO SERVER FOR CONNECTION")
+                # send a one-time ACK to toggle server connected status
+                landmark_queue.put_nowait("ACK")
+
             if delay >= PRINT_FREQ:
-                if out and out != pred_history[-1]:
+                if out and out != pred_history[-1] and out != "None":
                     pred_history.append(out)
                     pdecay = time.time()
                 delay = 0
-        except Empty:
+        except:
             pass
 
         delay += 1
         if time.time() - pdecay > 7:
             pred_history = deque([" "]*5, 5)
         holistic.draw_landmarks(image, results, use_holistic, ' '.join(pred_history))
-        cv2.imshow(APP_NAME, image)
+
+        if initialized:
+            cv2.circle(image,(20,450), 10, (0,255,0), -1)
+            cv2.putText(image,'online',(40,458), cv2.FONT_HERSHEY_SIMPLEX, 1,(255,255,255),2,cv2.LINE_AA)
+            cv2.imshow(APP_NAME, image)
+        else:
+            cv2.circle(image,(20,450), 10, (0,0,255), -1)
+            cv2.putText(image,'connecting',(40,458), cv2.FONT_HERSHEY_SIMPLEX, 1,(255,255,255),2,cv2.LINE_AA)
+            cv2.imshow(APP_NAME, image)
     cap.release()
     cv2.destroyAllWindows()
 
