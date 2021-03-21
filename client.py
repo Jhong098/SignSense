@@ -127,7 +127,7 @@ def video_loop(landmark_queue, prediction_queue, use_holistic=False):
             cv2.imshow(APP_NAME, image)
         else:
             cv2.circle(image,(20,450), 10, (0,0,255), -1)
-            cv2.putText(image,'loading',(40,458), cv2.FONT_HERSHEY_SIMPLEX, 1,(255,255,255),2,cv2.LINE_AA)
+            cv2.putText(image,'connecting',(40,458), cv2.FONT_HERSHEY_SIMPLEX, 1,(255,255,255),2,cv2.LINE_AA)
             cv2.imshow(APP_NAME, image)
     cap.release()
     cv2.destroyAllWindows()
