@@ -27,7 +27,6 @@ APP_NAME = "SignSense"
 # send landmarks and receive predictions from server continuously
 def server(landmark_queue, prediction_queue):
     common.print_debug_banner("STARTED SERVER")
-    initialized = False
     UDPClientSocket = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)
     UDPClientSocket.setblocking(0)
     while True:
@@ -37,16 +36,13 @@ def server(landmark_queue, prediction_queue):
             # Send message to server using created UDP socket
             UDPClientSocket.sendto(encrypted_landmark, serverAddressPort)
             # Receive message from the server
-            msgFromServer = UDPClientSocket.recvfrom(1024)[0]
-            print(f"received {msgFromServer}")
+            msgFromServer = UDPClientSocket.recvfrom(2048)[0]
             raw_data = encrypt.decrypt_chacha(msgFromServer)
-            print(f"decrypted {raw_data}")
             prediction_queue.put(raw_data)
-            # initialized = True
         except encrypt.DecryptionError:
             print(f"tried to decrypt {msgFromServer}")
         except socket.error as e:
-            print(f"SOCKET EXCEPTION: {e}")
+            # print(f"SOCKET EXCEPTION: {e}")
             pass
         except Exception as e:
             print(f"SERVER EXCEPTION: {e}")
@@ -114,7 +110,7 @@ def video_loop(landmark_queue, prediction_queue, use_holistic=False):
                 landmark_queue.put_nowait("ACK")
 
             if delay >= PRINT_FREQ:
-                if out and out != pred_history[-1]:
+                if out and out != pred_history[-1] and out != "None":
                     pred_history.append(out)
                     pdecay = time.time()
                 delay = 0

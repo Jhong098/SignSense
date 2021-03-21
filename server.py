@@ -50,10 +50,14 @@ def array_to_class(out, addr, connected):
         print(f"{LABELS[prediction]} {out[prediction]*100} - {addr}")
         tag = LABELS[prediction]
 
-        # send back prediction if it is a valid class or if the client hasn't connected
-        if tag is not None or not connected:
-            print(f"prediction is {tag}")
+        if not connected:
+            tag = "None" if tag is None else tag
             return encrypt.encrypt_chacha(tag) if ENCRYPT else tag.encode()
+
+        # send back prediction if it is a valid class or if the client hasn't connected
+        if tag is not None:
+            ret_val = encrypt.encrypt_chacha(tag) if ENCRYPT else tag.encode()
+            return ret_val
     else:
         print("None ({} {}% Below threshold)".format(
             LABELS[prediction], out[prediction]*100))
