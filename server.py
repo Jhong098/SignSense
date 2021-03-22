@@ -42,7 +42,6 @@ class MissingModelException(Exception):
     pass
 
 def array_to_class(out, addr, connected):
-    print(f"CONNECTED: {connected}")
     prediction = np.argmax(out)
 
     # send confident prediction
