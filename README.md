@@ -1,5 +1,7 @@
 # SignSense
 
+Real-time American Sign Language (ASL) interpreter using MediaPipe, Tensorflow, and Keras.
+
 ![ezgif com-gif-maker (1)](https://user-images.githubusercontent.com/16534325/112094473-8e8e3780-8b58-11eb-8537-55809acf3d4f.gif)
 
 ## Folder Structure
