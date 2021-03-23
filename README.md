@@ -1,4 +1,8 @@
+![signsense](https://user-images.githubusercontent.com/16534325/112093782-4ae6fe00-8b57-11eb-9ac4-e82d0681ce49.jpeg)
+
 # SignSense
+
+https://user-images.githubusercontent.com/16534325/112093802-533f3900-8b57-11eb-91a3-4cd7233f3c47.mp4
 
 ## Folder Structure
 
