@@ -15,7 +15,8 @@ from tensorflow.keras.utils import to_categorical
 
 import holistic
 
-TIMESTEPS = 60
+TIMESTEPS = 30
+TRAIN_TIMESTEPS = TIMESTEPS * 2
 POINT_DIM = 3
 
 
@@ -71,20 +72,20 @@ def onehot_labelled_signs(data_iter, num_labels):
         yield (data, onehot)
 
 def generate_windows(data, sign, start, end, stride):
-    while start + TIMESTEPS < min(end, data.shape[0]):
-        yield (data[start:start+TIMESTEPS], sign)
+    while start + TRAIN_TIMESTEPS < min(end, data.shape[0]):
+        yield (data[start:start+TRAIN_TIMESTEPS], sign)
         start += stride
 
 def truncate_and_divide_data(data_iter, holds, trim):
     for data, sign in iter(data_iter):
         datalen = data.shape[0]
-        if datalen > TIMESTEPS:
+        if datalen > TRAIN_TIMESTEPS:
             if sign in holds:
                 yield from generate_windows(data, sign, 30, datalen - 30, 30)
             else:
                 # If not even one window can be generated, then just take the back end of the data
-                if datalen - trim < TIMESTEPS:
-                    yield (data[datalen - TIMESTEPS:], sign)
+                if datalen - trim < TRAIN_TIMESTEPS:
+                    yield (data[datalen - TRAIN_TIMESTEPS:], sign)
                 else:
                     yield from generate_windows(data, sign, trim, datalen, 2)
         else:
@@ -92,15 +93,15 @@ def truncate_and_divide_data(data_iter, holds, trim):
 
 def extend_data(data_iter):
     for data, sign in iter(data_iter):
-        if data.shape[0] < TIMESTEPS:
+        if data.shape[0] < TRAIN_TIMESTEPS:
             #print("{} {}".format(sign, data.shape[0]))
-            zeros = np.zeros( (TIMESTEPS-data.shape[0],) + data.shape[1:] )
+            zeros = np.zeros( (TRAIN_TIMESTEPS-data.shape[0],) + data.shape[1:] )
             data = np.concatenate((data, zeros), axis=0)
         yield (data, sign)
 
 def add_gesture_zero(dataset, num_labels):
     len_per_label = int(len(dataset) // num_labels)
-    zeros = [(np.zeros((TIMESTEPS, dataset[0][0].shape[1])), 0)] * len_per_label
+    zeros = [(np.zeros((TRAIN_TIMESTEPS, dataset[0][0].shape[1])), 0)] * len_per_label
     return dataset + zeros
 
 def add_none_data(data_iter, dirname):
@@ -108,7 +109,12 @@ def add_none_data(data_iter, dirname):
         yield (data, sign)
     for datafile in Path(dirname, 'None').iterdir():
         data = holistic.read_datafile(datafile)
-        yield from generate_windows(data, 0, 0, data.shape[0], TIMESTEPS)
+        yield from generate_windows(data, 0, 0, data.shape[0], TRAIN_TIMESTEPS)
+
+def speed_up_data(data_iter):
+    for data, sign in iter(data_iter):
+        data = data[::2]
+        yield (data, sign)
 
 
 TEST_SPLIT = 3
@@ -137,6 +143,7 @@ def load_and_process_data(dirname):
     data_iter = add_none_data(data_iter, dirname) # Comment out this line to exclude "None" data when training
     data_iter = count_zeros(data_iter, count)
     data_iter = onehot_labelled_signs(data_iter, len(labels))
+    data_iter = speed_up_data(data_iter)
     data, data_test = split_data(data_iter)
     random.shuffle(data)
 
