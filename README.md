@@ -2,7 +2,10 @@
 
 Real-time American Sign Language (ASL) interpreter using MediaPipe, Tensorflow, and Keras.
 
-![ezgif com-gif-maker (1)](https://user-images.githubusercontent.com/16534325/112094473-8e8e3780-8b58-11eb-8537-55809acf3d4f.gif)
+SignSense can recognize up to 21 signs with a latency of less than 2 seconds.
+
+![ezgif com-gif-maker (2)](https://user-images.githubusercontent.com/16534325/113086932-7d1bdf80-9197-11eb-9e52-1df0fe744688.gif)
+
 
 ## Folder Structure
 
